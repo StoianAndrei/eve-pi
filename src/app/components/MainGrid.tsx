@@ -14,6 +14,7 @@ import { CharacterContext, SessionContext } from "../context/Context";
 import ResponsiveAppBar from "./AppBar/AppBar";
 import { Summary } from "./Summary/Summary";
 import { RegionMap } from "./Map/RegionMap";
+import { TemplatesView } from "./Templates/TemplatesView";
 import {
   DragDropContext,
   Droppable,
@@ -53,7 +54,7 @@ export const MainGrid = () => {
   const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode } = useContext(SessionContext);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [allCollapsed, setAllCollapsed] = useState(false);
-  const [mapMode, setMapMode] = useState(false);
+  const [view, setView] = useState<"grid" | "map" | "templates">("grid");
 
   // Initialize account order when characters change
   useEffect(() => {
@@ -223,18 +224,35 @@ export const MainGrid = () => {
             <Button
               size="small"
               style={{
-                backgroundColor: mapMode
-                  ? "rgba(144, 202, 249, 0.16)"
-                  : "inherit",
+                backgroundColor:
+                  view === "map" ? "rgba(144, 202, 249, 0.16)" : "inherit",
               }}
-              onClick={() => setMapMode(!mapMode)}
+              onClick={() => setView(view === "map" ? "grid" : "map")}
             >
               Map view
             </Button>
           </Tooltip>
+          <Tooltip title="Browse and inspect importable PI planet templates">
+            <Button
+              size="small"
+              style={{
+                backgroundColor:
+                  view === "templates"
+                    ? "rgba(144, 202, 249, 0.16)"
+                    : "inherit",
+              }}
+              onClick={() =>
+                setView(view === "templates" ? "grid" : "templates")
+              }
+            >
+              Templates
+            </Button>
+          </Tooltip>
         </Box>
-        {mapMode ? (
+        {view === "map" ? (
           <RegionMap characters={characters} />
+        ) : view === "templates" ? (
+          <TemplatesView />
         ) : (
         <DragDropContextComponent onDragEnd={handleDragEnd}>
           <DroppableComponent droppableId="accounts">
