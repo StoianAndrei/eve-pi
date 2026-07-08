@@ -13,6 +13,7 @@ import { AccessToken } from "@/types";
 import { CharacterContext, SessionContext } from "../context/Context";
 import ResponsiveAppBar from "./AppBar/AppBar";
 import { Summary } from "./Summary/Summary";
+import { RegionMap } from "./Map/RegionMap";
 import {
   DragDropContext,
   Droppable,
@@ -52,6 +53,7 @@ export const MainGrid = () => {
   const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode } = useContext(SessionContext);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [allCollapsed, setAllCollapsed] = useState(false);
+  const [mapMode, setMapMode] = useState(false);
 
   // Initialize account order when characters change
   useEffect(() => {
@@ -217,7 +219,23 @@ export const MainGrid = () => {
               Extraction datetime
             </Button>
           </Tooltip>
+          <Tooltip title="Show your PI grouped by region and system">
+            <Button
+              size="small"
+              style={{
+                backgroundColor: mapMode
+                  ? "rgba(144, 202, 249, 0.16)"
+                  : "inherit",
+              }}
+              onClick={() => setMapMode(!mapMode)}
+            >
+              Map view
+            </Button>
+          </Tooltip>
         </Box>
+        {mapMode ? (
+          <RegionMap characters={characters} />
+        ) : (
         <DragDropContextComponent onDragEnd={handleDragEnd}>
           <DroppableComponent droppableId="accounts">
             {(provided: any) => (
@@ -264,6 +282,7 @@ export const MainGrid = () => {
             )}
           </DroppableComponent>
         </DragDropContextComponent>
+        )}
       </Box>
     </ThemeProvider>
   );
