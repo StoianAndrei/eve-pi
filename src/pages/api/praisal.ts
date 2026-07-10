@@ -1,6 +1,11 @@
-import { getPraisal } from "@/eve-praisal";
+import { EvePraisalResult, getPraisal } from "@/eve-praisal";
 import { NextApiRequest, NextApiResponse } from "next";
 import logger from "@/utils/logger";
+
+const PRICE_CACHE_TTL_MS = 15 * 60 * 1000;
+let priceCache:
+  | { key: string; data: EvePraisalResult; timestamp: number }
+  | undefined;
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === "POST") {
@@ -32,9 +37,26 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         items: praisalRequest.length
       });
 
+      const cacheKey = praisalRequest
+        .map((i) => i.type_id)
+        .sort((a, b) => a - b)
+        .join(",");
+      if (
+        priceCache &&
+        priceCache.key === cacheKey &&
+        Date.now() - priceCache.timestamp < PRICE_CACHE_TTL_MS
+      ) {
+        logger.info({ event: 'praisal_request_cache_hit' });
+        return res.json(priceCache.data);
+      }
+
       const praisal = await getPraisal(praisalRequest);
 
-      logger.info({ 
+      if (praisal?.appraisal?.items?.length) {
+        priceCache = { key: cacheKey, data: praisal, timestamp: Date.now() };
+      }
+
+      logger.info({
         event: 'praisal_request_success',
         items: praisalRequest.length
       });
