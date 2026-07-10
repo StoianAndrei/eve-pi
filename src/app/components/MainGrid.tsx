@@ -7,12 +7,21 @@ import {
   createTheme,
   Button,
   Tooltip,
+  Tabs,
+  Tab,
+  Badge,
+  Typography,
 } from "@mui/material";
 import { AccountCard } from "./Account/AccountCard";
 import { AccessToken } from "@/types";
 import { CharacterContext, SessionContext } from "../context/Context";
 import ResponsiveAppBar from "./AppBar/AppBar";
-import { Summary } from "./Summary/Summary";
+import { EmpireSummaryStrip } from "./EmpireSummaryStrip";
+import { PipelinePlanetCard } from "./PlanetaryInteraction/PipelinePlanetCard";
+import { WeekManifest } from "./Manifest/WeekManifest";
+import { RebalancePanel } from "./Rebalance/RebalancePanel";
+import { findSwaps } from "./Rebalance/rebalance";
+import { TIER_COLORS } from "@/pi-tiers";
 import {
   DragDropContext,
   Droppable,
@@ -25,6 +34,41 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 interface Grouped {
   [key: string]: AccessToken[];
 }
+
+type View = "pipeline" | "week" | "rebalance" | "classic";
+const VIEWS: View[] = ["pipeline", "week", "rebalance", "classic"];
+
+const FlowLegend = () => (
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 1.5,
+      bgcolor: "#191919",
+      border: "1px solid rgba(255,255,255,.07)",
+      borderRadius: "8px",
+      px: 1.75,
+      py: 1.1,
+    }}
+  >
+    {[
+      { color: TIER_COLORS.P0, label: "P0 extract — stays on planet" },
+      { color: TIER_COLORS.P1, label: "P1 import — counterpart from your other bases" },
+      { color: TIER_COLORS.P2, label: "P2 export — the only thing you carry out" },
+    ].map((item, i) => (
+      <Box key={item.label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {i > 0 && (
+          <Typography sx={{ color: "rgba(255,255,255,.25)", mr: 1.5 }}>→</Typography>
+        )}
+        <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: item.color }} />
+        <Typography sx={{ fontSize: ".78rem", color: "text.secondary" }}>
+          {item.label}
+        </Typography>
+      </Box>
+    ))}
+  </Box>
+);
 
 declare module "@mui/material/styles" {
   interface Theme {
@@ -49,9 +93,27 @@ declare module "@mui/material/styles" {
 
 export const MainGrid = () => {
   const { characters } = useContext(CharacterContext);
-  const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode } = useContext(SessionContext);
+  const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode, piPrices } = useContext(SessionContext);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [allCollapsed, setAllCollapsed] = useState(false);
+  const [view, setView] = useState<View>("pipeline");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("mainView");
+    if (saved && VIEWS.includes(saved as View)) {
+      setView(saved as View);
+    }
+  }, []);
+
+  const changeView = (next: View) => {
+    setView(next);
+    localStorage.setItem("mainView", next);
+  };
+
+  const lossCount = findSwaps(characters, piPrices).reduce(
+    (n, r) => n + r.sides.length,
+    0,
+  );
 
   // Initialize account order when characters change
   useEffect(() => {
@@ -147,7 +209,56 @@ export const MainGrid = () => {
       <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
         <ResponsiveAppBar />
-        {compactMode ? <></> : <Summary characters={characters} />}
+        {/* Live empire KPI strip — folds the old Empire/Summary row (P9) */}
+        <Box sx={{ px: 1, pt: 1 }}>
+          <EmpireSummaryStrip characters={characters} />
+        </Box>
+        <Tabs
+          value={view}
+          onChange={(_, v: View) => changeView(v)}
+          sx={{ px: 1, borderBottom: "1px solid rgba(255,255,255,.08)" }}
+        >
+          <Tab value="pipeline" label="Planets" />
+          <Tab value="week" label="Your Week" />
+          <Tab
+            value="rebalance"
+            label={
+              <Badge badgeContent={lossCount} color="error">
+                <Box sx={{ pr: lossCount ? 1.5 : 0 }}>Rebalance</Box>
+              </Badge>
+            }
+          />
+          <Tab value="classic" label="Classic Table" />
+        </Tabs>
+        {view === "pipeline" && (
+          <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <FlowLegend />
+            {accountOrder.flatMap(
+              (account) =>
+                groupByAccount[account]?.flatMap((character) =>
+                  character.planets.map((planet) => (
+                    <PipelinePlanetCard
+                      key={`${character.character.characterId}-${planet.planet_id}`}
+                      planet={planet}
+                      character={character}
+                    />
+                  )),
+                ) ?? [],
+            )}
+          </Box>
+        )}
+        {view === "week" && (
+          <Box sx={{ p: 1 }}>
+            <WeekManifest characters={characters} />
+          </Box>
+        )}
+        {view === "rebalance" && (
+          <Box sx={{ p: 1 }}>
+            <RebalancePanel characters={characters} />
+          </Box>
+        )}
+        {view === "classic" && (
+        <>
         <Box
           sx={{
             display: "flex",
@@ -264,6 +375,8 @@ export const MainGrid = () => {
             )}
           </DroppableComponent>
         </DragDropContextComponent>
+        </>
+        )}
       </Box>
     </ThemeProvider>
   );
