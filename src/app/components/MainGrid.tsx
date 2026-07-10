@@ -21,6 +21,9 @@ import { PipelinePlanetCard } from "./PlanetaryInteraction/PipelinePlanetCard";
 import { WeekManifest } from "./Manifest/WeekManifest";
 import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
+import { ChainExplorer } from "./Chain/ChainExplorer";
+import { RankingPanel } from "./Chain/RankingPanel";
+import { CHAIN_TARGETS } from "@/pi-chain";
 import { TIER_COLORS } from "@/pi-tiers";
 import {
   DragDropContext,
@@ -35,8 +38,8 @@ interface Grouped {
   [key: string]: AccessToken[];
 }
 
-type View = "pipeline" | "week" | "rebalance" | "classic";
-const VIEWS: View[] = ["pipeline", "week", "rebalance", "classic"];
+type View = "pipeline" | "week" | "rebalance" | "chain" | "ranking" | "classic";
+const VIEWS: View[] = ["pipeline", "week", "rebalance", "chain", "ranking", "classic"];
 
 const FlowLegend = () => (
   <Box
@@ -97,13 +100,32 @@ export const MainGrid = () => {
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [view, setView] = useState<View>("pipeline");
+  const [chainTarget, setChainTarget] = useState<number>(
+    CHAIN_TARGETS[0]?.id ?? 0,
+  );
 
   useEffect(() => {
+    // Deep link (?view=chain&pi=2867) wins over the saved tab.
+    const params = new URLSearchParams(window.location.search);
+    const urlView = params.get("view");
+    const urlPi = Number(params.get("pi"));
+    if (urlPi && CHAIN_TARGETS.some((t) => t.id === urlPi)) {
+      setChainTarget(urlPi);
+    }
+    if (urlView && VIEWS.includes(urlView as View)) {
+      setView(urlView as View);
+      return;
+    }
     const saved = localStorage.getItem("mainView");
     if (saved && VIEWS.includes(saved as View)) {
       setView(saved as View);
     }
   }, []);
+
+  const openChain = (typeId: number) => {
+    setChainTarget(typeId);
+    changeView("chain");
+  };
 
   const changeView = (next: View) => {
     setView(next);
@@ -228,6 +250,8 @@ export const MainGrid = () => {
               </Badge>
             }
           />
+          <Tab value="chain" label="Chain Explorer" />
+          <Tab value="ranking" label="Ranking" />
           <Tab value="classic" label="Classic Table" />
         </Tabs>
         {view === "pipeline" && (
@@ -255,6 +279,16 @@ export const MainGrid = () => {
         {view === "rebalance" && (
           <Box sx={{ p: 1 }}>
             <RebalancePanel characters={characters} />
+          </Box>
+        )}
+        {view === "chain" && (
+          <Box sx={{ p: 1 }}>
+            <ChainExplorer target={chainTarget} onTargetChange={setChainTarget} />
+          </Box>
+        )}
+        {view === "ranking" && (
+          <Box sx={{ p: 1 }}>
+            <RankingPanel onOpen={openChain} />
           </Box>
         )}
         {view === "classic" && (
