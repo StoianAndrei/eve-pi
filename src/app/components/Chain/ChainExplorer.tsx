@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Box,
@@ -14,6 +14,12 @@ import {
 } from "@mui/material";
 import { SessionContext } from "@/app/context/Context";
 import { EVE_IMAGE_URL } from "@/const";
+import {
+  EvePraisalResult,
+  fetchAllPrices,
+  JITA_REGION_ID,
+  MARKET_HUBS,
+} from "@/eve-praisal";
 import { TIER_COLORS } from "@/pi-tiers";
 import {
   buildChain,
@@ -101,11 +107,45 @@ export function ChainExplorer({
   const [buySide, setBuySide] = useState<OrderSide>("sell");
   const [customsPct, setCustomsPct] = useState(5);
   const [marketPct, setMarketPct] = useState(3.6);
+  const [hub, setHub] = useState("Jita");
+  const [hubPrices, setHubPrices] = useState<EvePraisalResult | undefined>();
+  const [hubLoading, setHubLoading] = useState(false);
   const [copied, setCopied] = useState<"" | "url" | "plan">("");
+  const hubCache = useRef(new Map<string, EvePraisalResult>());
+
+  const regionId =
+    MARKET_HUBS.find((h) => h.name === hub)?.regionId ?? JITA_REGION_ID;
+
+  useEffect(() => {
+    if (regionId === JITA_REGION_ID) {
+      setHubPrices(undefined);
+      return;
+    }
+    const cached = hubCache.current.get(hub);
+    if (cached) {
+      setHubPrices(cached);
+      return;
+    }
+    let stale = false;
+    setHubLoading(true);
+    fetchAllPrices(regionId)
+      .then((prices) => {
+        if (stale) return;
+        hubCache.current.set(hub, prices);
+        setHubPrices(prices);
+      })
+      .catch(() => !stale && setHubPrices(undefined))
+      .finally(() => !stale && setHubLoading(false));
+    return () => {
+      stale = true;
+    };
+  }, [hub, regionId]);
+
+  const activePrices = regionId === JITA_REGION_ID ? piPrices : hubPrices;
 
   const chain = useMemo(
-    () => buildChain(target, piPrices, { customsPct, marketPct, sellSide, buySide }),
-    [target, piPrices, customsPct, marketPct, sellSide, buySide],
+    () => buildChain(target, activePrices, { customsPct, marketPct, sellSide, buySide }),
+    [target, activePrices, customsPct, marketPct, sellSide, buySide],
   );
 
   const stateUrl = useMemo(() => {
@@ -113,13 +153,14 @@ export function ChainExplorer({
     const params = new URLSearchParams({
       view: "chain",
       pi: String(target),
+      hub,
       sell: sellSide,
       buy: buySide,
       customs: String(customsPct),
       market: String(marketPct),
     });
     return `${window.location.origin}${window.location.pathname}?${params}`;
-  }, [target, sellSide, buySide, customsPct, marketPct]);
+  }, [target, hub, sellSide, buySide, customsPct, marketPct]);
 
   const copy = (kind: "url" | "plan") => {
     const text = kind === "url" ? stateUrl : chain ? buildPlanText(chain) : "";
@@ -138,8 +179,9 @@ export function ChainExplorer({
         </Typography>
       </Typography>
       <Typography sx={{ fontSize: ".75rem", color: "text.disabled", mb: 1.75 }}>
-        Live Jita prices. Net is per one top-tier factory, full build from P0.
-        {chain?.missingPrice && " — no market price for this product yet."}
+        Live {hub} prices{hubLoading && " (loading…)"}. Net is per one top-tier
+        factory, full build from P0.
+        {chain?.missingPrice && !hubLoading && " — no market price for this product yet."}
       </Typography>
 
       {/* controls */}
@@ -158,6 +200,21 @@ export function ChainExplorer({
                   {t.tier}
                 </Box>
                 {t.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Typography sx={controlLabel}>Hub</Typography>
+          <Select
+            size="small"
+            value={hub}
+            onChange={(e) => setHub(e.target.value)}
+            sx={{ ...inputSx, fontSize: ".85rem" }}
+          >
+            {MARKET_HUBS.map((h) => (
+              <MenuItem key={h.name} value={h.name} sx={{ fontSize: ".85rem" }}>
+                {h.name}
               </MenuItem>
             ))}
           </Select>

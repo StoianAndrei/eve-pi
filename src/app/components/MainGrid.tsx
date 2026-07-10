@@ -23,6 +23,15 @@ import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
 import { ChainExplorer } from "./Chain/ChainExplorer";
 import { RankingPanel } from "./Chain/RankingPanel";
+import { SystemPlanner } from "./System/SystemPlanner";
+import { NotificationsPanel } from "./Notifications/NotificationsPanel";
+import {
+  deliverAlerts,
+  evaluateAlerts,
+  loadNotifyConfig,
+  takeUnfired,
+} from "./Notifications/notify";
+import { Landing } from "./Landing/Landing";
 import { CHAIN_TARGETS } from "@/pi-chain";
 import { TIER_COLORS } from "@/pi-tiers";
 import {
@@ -38,8 +47,25 @@ interface Grouped {
   [key: string]: AccessToken[];
 }
 
-type View = "pipeline" | "week" | "rebalance" | "chain" | "ranking" | "classic";
-const VIEWS: View[] = ["pipeline", "week", "rebalance", "chain", "ranking", "classic"];
+type View =
+  | "pipeline"
+  | "week"
+  | "rebalance"
+  | "chain"
+  | "ranking"
+  | "system"
+  | "notify"
+  | "classic";
+const VIEWS: View[] = [
+  "pipeline",
+  "week",
+  "rebalance",
+  "chain",
+  "ranking",
+  "system",
+  "notify",
+  "classic",
+];
 
 const FlowLegend = () => (
   <Box
@@ -96,15 +122,17 @@ declare module "@mui/material/styles" {
 
 export const MainGrid = () => {
   const { characters } = useContext(CharacterContext);
-  const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode, piPrices } = useContext(SessionContext);
+  const { compactMode, toggleCompactMode, alertMode, toggleAlertMode, planMode, togglePlanMode, extractionTimeMode, toggleExtractionTimeMode, piPrices, sessionReady } = useContext(SessionContext);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [allCollapsed, setAllCollapsed] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [view, setView] = useState<View>("pipeline");
   const [chainTarget, setChainTarget] = useState<number>(
     CHAIN_TARGETS[0]?.id ?? 0,
   );
 
   useEffect(() => {
+    setDemoMode(localStorage.getItem("demoMode") === "1");
     // Deep link (?view=chain&pi=2867) wins over the saved tab.
     const params = new URLSearchParams(window.location.search);
     const urlView = params.get("view");
@@ -121,6 +149,20 @@ export const MainGrid = () => {
       setView(saved as View);
     }
   }, []);
+
+  // R5 — background notification checks while the app is open.
+  useEffect(() => {
+    if (!characters.length) return;
+    const check = () => {
+      const config = loadNotifyConfig();
+      if (!config.enabled) return;
+      const alerts = takeUnfired(evaluateAlerts(characters, config));
+      if (alerts.length) deliverAlerts(alerts, config);
+    };
+    check();
+    const interval = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [characters]);
 
   const openChain = (typeId: number) => {
     setChainTarget(typeId);
@@ -226,11 +268,58 @@ export const MainGrid = () => {
   const DroppableComponent = Droppable as any;
   const DraggableComponent = Draggable as any;
 
+  const enterDemo = () => {
+    localStorage.setItem("demoMode", "1");
+    setDemoMode(true);
+    changeView("chain");
+  };
+
+  const exitDemo = () => {
+    localStorage.removeItem("demoMode");
+    setDemoMode(false);
+  };
+
+  // Landing / login gate: logged-out visitors see the hero until they log in
+  // or enter the demo. Logged-in users never see it.
+  if (sessionReady && characters.length === 0 && !demoMode) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Landing onDemo={enterDemo} />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <Box sx={{ flexGrow: 1 }}>
         <ResponsiveAppBar />
+        {demoMode && characters.length === 0 && (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 1.5,
+              bgcolor: "rgba(144,202,249,.08)",
+              borderBottom: "1px solid rgba(144,202,249,.25)",
+              px: 2,
+              py: 1,
+            }}
+          >
+            <Typography sx={{ fontSize: ".82rem", color: "primary.main", fontWeight: 600 }}>
+              Demo mode
+            </Typography>
+            <Typography sx={{ fontSize: ".8rem", color: "text.secondary", flex: 1, minWidth: 260 }}>
+              Chain Explorer, Ranking and System Planner are fully live. Add a
+              character to see your own colonies in the planet views.
+            </Typography>
+            <Button size="small" onClick={exitDemo}>
+              Back to landing
+            </Button>
+          </Box>
+        )}
         {/* Live empire KPI strip — folds the old Empire/Summary row (P9) */}
         <Box sx={{ px: 1, pt: 1 }}>
           <EmpireSummaryStrip characters={characters} />
@@ -252,6 +341,8 @@ export const MainGrid = () => {
           />
           <Tab value="chain" label="Chain Explorer" />
           <Tab value="ranking" label="Ranking" />
+          <Tab value="system" label="System Planner" />
+          <Tab value="notify" label="Notifications" />
           <Tab value="classic" label="Classic Table" />
         </Tabs>
         {view === "pipeline" && (
@@ -289,6 +380,16 @@ export const MainGrid = () => {
         {view === "ranking" && (
           <Box sx={{ p: 1 }}>
             <RankingPanel onOpen={openChain} />
+          </Box>
+        )}
+        {view === "system" && (
+          <Box sx={{ p: 1 }}>
+            <SystemPlanner />
+          </Box>
+        )}
+        {view === "notify" && (
+          <Box sx={{ p: 1 }}>
+            <NotificationsPanel />
           </Box>
         )}
         {view === "classic" && (

@@ -82,7 +82,15 @@ export interface EvePraisalRequest {
 const PRAISAL_URL = process.env.NEXT_PUBLIC_PRAISAL_URL ?? "";
 
 const FUZZWORK_AGGREGATES_URL = "https://market.fuzzwork.co.uk/aggregates/";
-const JITA_REGION_ID = 10000002;
+export const JITA_REGION_ID = 10000002;
+
+/** Trade hubs selectable for pricing (R2). Region-wide Fuzzwork aggregates. */
+export const MARKET_HUBS: { name: string; regionId: number }[] = [
+  { name: "Jita", regionId: JITA_REGION_ID },
+  { name: "Amarr", regionId: 10000043 },
+  { name: "Dodixie", regionId: 10000032 },
+  { name: "Rens", regionId: 10000030 },
+];
 
 interface FuzzworkSide {
   weightedAverage?: string | number;
@@ -118,14 +126,15 @@ const toPriceSide = (side: FuzzworkSide | undefined) => ({
  * (items[].typeID + prices.sell.min / prices.buy.max).
  */
 const getFuzzworkPraisal = async (
-  items: { quantity: number; type_id: number }[]
+  items: { quantity: number; type_id: number }[],
+  regionId: number = JITA_REGION_ID
 ): Promise<EvePraisalResult | undefined> => {
   const typeIds = Array.from(new Set(items.map((i) => i.type_id)));
   if (typeIds.length === 0) return undefined;
 
   try {
     const res = await fetch(
-      `${FUZZWORK_AGGREGATES_URL}?region=${JITA_REGION_ID}&types=${typeIds.join(",")}`,
+      `${FUZZWORK_AGGREGATES_URL}?region=${regionId}&types=${typeIds.join(",")}`,
       {
         headers: {
           "User-Agent": "EVE-PI https://github.com/calli-eve/eve-pi",
@@ -157,11 +166,14 @@ const getFuzzworkPraisal = async (
       };
     });
 
+    const hubName =
+      MARKET_HUBS.find((h) => h.regionId === regionId)?.name.toLowerCase() ??
+      "jita";
     return {
       appraisal: {
         created: Math.floor(Date.now() / 1000),
         kind: "fuzzwork",
-        market_name: "jita",
+        market_name: hubName,
         totals: { buy: 0, sell: 0, volume: 0 },
         items: itemsMapped,
         raw: "",
@@ -176,8 +188,11 @@ const getFuzzworkPraisal = async (
 };
 
 export const getPraisal = async (
-  items: { quantity: number; type_id: number }[]
+  items: { quantity: number; type_id: number }[],
+  regionId: number = JITA_REGION_ID
 ): Promise<EvePraisalResult | undefined> => {
+  // The evepraisal-style endpoint is Jita-only; other hubs go straight to Fuzzwork.
+  if (regionId !== JITA_REGION_ID) return getFuzzworkPraisal(items, regionId);
   if (PRAISAL_URL) {
     const praisalRequest = {
       market_name: "jita",
@@ -202,11 +217,14 @@ export const getPraisal = async (
   return getFuzzworkPraisal(items);
 };
 
-export const fetchAllPrices = async (): Promise<EvePraisalResult> => {
+export const fetchAllPrices = async (
+  regionId: number = JITA_REGION_ID
+): Promise<EvePraisalResult> => {
   const allPI = PI_TYPES_ARRAY.map((t) => {
     return { quantity: 1, type_id: t.type_id };
   });
-  return await fetch("api/praisal", {
+  const query = regionId !== JITA_REGION_ID ? `?region=${regionId}` : "";
+  return await fetch(`api/praisal${query}`, {
     method: "POST",
     body: JSON.stringify(allPI),
   }).then((res) => res.json());
