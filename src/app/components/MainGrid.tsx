@@ -24,6 +24,7 @@ import { findSwaps } from "./Rebalance/rebalance";
 import { ChainExplorer } from "./Chain/ChainExplorer";
 import { RankingPanel } from "./Chain/RankingPanel";
 import { SystemPlanner } from "./System/SystemPlanner";
+import { GoalPlanner } from "./Goal/GoalPlanner";
 import { NotificationsPanel } from "./Notifications/NotificationsPanel";
 import {
   deliverAlerts,
@@ -50,6 +51,7 @@ interface Grouped {
 type View =
   | "pipeline"
   | "week"
+  | "goal"
   | "rebalance"
   | "chain"
   | "ranking"
@@ -59,6 +61,7 @@ type View =
 const VIEWS: View[] = [
   "pipeline",
   "week",
+  "goal",
   "rebalance",
   "chain",
   "ranking",
@@ -331,6 +334,7 @@ export const MainGrid = () => {
         >
           <Tab value="pipeline" label="Planets" />
           <Tab value="week" label="Your Week" />
+          <Tab value="goal" label="Goal Planner" />
           <Tab
             value="rebalance"
             label={
@@ -365,6 +369,11 @@ export const MainGrid = () => {
         {view === "week" && (
           <Box sx={{ p: 1 }}>
             <WeekManifest characters={characters} />
+          </Box>
+        )}
+        {view === "goal" && (
+          <Box sx={{ p: 1 }}>
+            <GoalPlanner />
           </Box>
         )}
         {view === "rebalance" && (
