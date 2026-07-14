@@ -63,7 +63,47 @@ Rules → Discord webhook / browser push: extractor expires < Nh, launchpad > N%
 ### R7 — Colony Builder + community templates *(LOW · large · Industrial EVE, EVE-Webtools)*
 Drag-facility layout designer with shareable/community templates. Separate project; eve-pi has `PinsCanvas3D` + `PlanetConfig` as a starting point.
 
+### R8 — Planet-combination recommender *(MED · EVE OS `industry/planetary`)*
+Abstract "which planet *types* do I need for X" answer, no concrete system required
+(complements our System Planner, which needs one). From the EVE OS teardown:
+one resource planet per required P0, except the **factory hub planet also
+extracts every required P0 its type can** ("Hub and Spoke"); efficiency badge =
+P0s covered / required. Data already in `pi-planets.ts` (`PLANET_P0`) +
+`pi-chain.ts` (`buildChain` leaves). Improvement over EVE OS: scale the
+facility counts with our chain ratios instead of their static 1 adv / 1 basic /
+N extractors template.
+
+### R9 — Materials-grid investigator view *(MED/LOW · EVE OS)*
+Whole-graph column view (Planets → P0 → P1 → P2 → P3 → P4) with three-state
+ancestry highlighting and edge lines on selection. Mechanism (from their DOM):
+static type_id-keyed nodes; on select, walk the recipe tree up and mark
+ancestors `highlighted` (+ which side an edge anchors), everything else
+`dimmed`; edges are absolutely-positioned rotated divs computed from node DOM
+positions, toggleable. All client-side, no backend. Also: source-planet chips
+on recipe-tree P0 leaves — cheap add to our Chain Explorer ladder.
+
 ---
+
+## Teardown notes — EVE OS Planetary Industry Visualizer (2026-07)
+
+Captured from the rendered DOM of `eveos.space/industry/planetary` with
+Self-Harmonizing Power Core selected:
+
+- **Static SPA**: SDE-derived tables baked into the JS bundle; every node has
+  `data-item-id` = type_id; icons from `images.evetech.net`; works logged out.
+  Same data architecture as our `const.ts` — no server round-trips.
+- **Selection model**: `selected` on the target, `highlighted input-left
+  output-right` on recipe ancestors + sourcing planet types, `dimmed`
+  otherwise.
+- **Plan panel**: required P0 leaves (each with all extracting planet types),
+  the hub-and-spoke combination (8 spokes + 1 hub for 9 P0s; only the hub
+  doubles up on P0s — Lava spokes were NOT merged even though one Lava could
+  extract both Felsic Magma and Suspended Plasma), and template facility
+  counts (1 advanced / 1 basic / extractors = spoke count) — **not**
+  throughput-scaled.
+- **Where we're already ahead**: real want-vs-have factory math (Goal
+  Planner), live prices + tax model (Chain Explorer/Ranking), live ESI system
+  inventories (System Planner), per-character logistics (Your Week).
 
 ## Prompt-pack mapping
 - Built (design): **P1** pipeline, **P2** value/hr, **P3** factories/uptime, **P5** manifest, **P6** rebalance, **P9** remove Empire.
