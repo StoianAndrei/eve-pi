@@ -27,6 +27,18 @@ export const PLANET_TYPES: PlanetType[] = [
   "temperate",
 ];
 
+/** Planet-type accent colors (design v3 TYPEC). */
+export const PLANET_COLORS: Record<PlanetType, string> = {
+  temperate: "#4a9c6d",
+  barren: "#b08d57",
+  gas: "#5fb0c9",
+  ice: "#a9c7e0",
+  oceanic: "#3f7fa6",
+  lava: "#d1583b",
+  plasma: "#a367c9",
+  storm: "#7d8a9c",
+};
+
 /** Planet types that can extract a given P0. */
 export const planetTypesForP0 = (p0: number): PlanetType[] =>
   PLANET_TYPES.filter((t) => PLANET_P0[t].includes(p0));

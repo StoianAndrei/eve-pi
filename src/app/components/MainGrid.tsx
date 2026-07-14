@@ -21,8 +21,6 @@ import { PipelinePlanetCard } from "./PlanetaryInteraction/PipelinePlanetCard";
 import { WeekManifest } from "./Manifest/WeekManifest";
 import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
-import { ChainExplorer } from "./Chain/ChainExplorer";
-import { RankingPanel } from "./Chain/RankingPanel";
 import { SystemPlanner } from "./System/SystemPlanner";
 import { GoalPlanner } from "./Goal/GoalPlanner";
 import { Investigator } from "./Investigate/Investigator";
@@ -54,8 +52,6 @@ type View =
   | "week"
   | "goal"
   | "rebalance"
-  | "chain"
-  | "ranking"
   | "investigate"
   | "system"
   | "notify"
@@ -65,13 +61,16 @@ const VIEWS: View[] = [
   "week",
   "goal",
   "rebalance",
-  "chain",
-  "ranking",
   "investigate",
   "system",
   "notify",
   "classic",
 ];
+// Old tab ids (removed in design v3) still resolve for saved state + deep links.
+const VIEW_ALIASES: Record<string, View> = {
+  chain: "investigate",
+  ranking: "investigate",
+};
 
 const FlowLegend = () => (
   <Box
@@ -146,13 +145,20 @@ export const MainGrid = () => {
     if (urlPi && CHAIN_TARGETS.some((t) => t.id === urlPi)) {
       setChainTarget(urlPi);
     }
-    if (urlView && VIEWS.includes(urlView as View)) {
-      setView(urlView as View);
+    const resolve = (v: string | null): View | undefined =>
+      v && VIEWS.includes(v as View)
+        ? (v as View)
+        : v
+          ? VIEW_ALIASES[v]
+          : undefined;
+    const fromUrl = resolve(urlView);
+    if (fromUrl) {
+      setView(fromUrl);
       return;
     }
-    const saved = localStorage.getItem("mainView");
-    if (saved && VIEWS.includes(saved as View)) {
-      setView(saved as View);
+    const fromSaved = resolve(localStorage.getItem("mainView"));
+    if (fromSaved) {
+      setView(fromSaved);
     }
   }, []);
 
@@ -170,10 +176,6 @@ export const MainGrid = () => {
     return () => clearInterval(interval);
   }, [characters]);
 
-  const openChain = (typeId: number) => {
-    setChainTarget(typeId);
-    changeView("chain");
-  };
 
   const changeView = (next: View) => {
     setView(next);
@@ -277,7 +279,7 @@ export const MainGrid = () => {
   const enterDemo = () => {
     localStorage.setItem("demoMode", "1");
     setDemoMode(true);
-    changeView("chain");
+    changeView("investigate");
   };
 
   const exitDemo = () => {
@@ -346,8 +348,6 @@ export const MainGrid = () => {
               </Badge>
             }
           />
-          <Tab value="chain" label="Chain Explorer" />
-          <Tab value="ranking" label="Ranking" />
           <Tab value="investigate" label="Investigator" />
           <Tab value="system" label="System Planner" />
           <Tab value="notify" label="Notifications" />
@@ -385,19 +385,9 @@ export const MainGrid = () => {
             <RebalancePanel characters={characters} />
           </Box>
         )}
-        {view === "chain" && (
-          <Box sx={{ p: 1 }}>
-            <ChainExplorer target={chainTarget} onTargetChange={setChainTarget} />
-          </Box>
-        )}
-        {view === "ranking" && (
-          <Box sx={{ p: 1 }}>
-            <RankingPanel onOpen={openChain} />
-          </Box>
-        )}
         {view === "investigate" && (
           <Box sx={{ p: 1 }}>
-            <Investigator />
+            <Investigator target={chainTarget} onTargetChange={setChainTarget} />
           </Box>
         )}
         {view === "system" && (
