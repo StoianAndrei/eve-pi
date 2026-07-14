@@ -4,7 +4,7 @@ export const BuyMeCoffeeButton = () => {
     <Box>
       <Tooltip title="Support the development of this tool">
         <Button
-          href="https://buymeacoffee.com/evepi"
+          href="https://buymeacoffee.com/thedatashrink"
           target="_blank"
           style={{ width: "100%" }}
           sx={{ color: "white", display: "block" }}
