@@ -28,6 +28,7 @@ import {
   fmtIsk,
   OrderSide,
 } from "@/pi-chain";
+import { planetTypesForP0 } from "@/pi-investigate";
 
 /**
  * R3 — Chain Explorer. Back-trace any P2/P3/P4 to its P0 leaves, tax & price
@@ -375,6 +376,24 @@ export function ChainExplorer({
                           {fmtIsk(n.unitPrice)} ISK
                         </Typography>
                       </Box>
+                      {n.tier === "P0" && (
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.6 }}>
+                          <Typography sx={{ fontSize: ".62rem", color: "text.disabled" }}>
+                            from
+                          </Typography>
+                          {planetTypesForP0(n.id).map((t) => (
+                            <Image
+                              key={t}
+                              src={`/${t}.png`}
+                              alt={t}
+                              title={t}
+                              width={16}
+                              height={16}
+                              style={{ borderRadius: 8 }}
+                            />
+                          ))}
+                        </Box>
+                      )}
                     </Box>
                   ))}
                 </Box>

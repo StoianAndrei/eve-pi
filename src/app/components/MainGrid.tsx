@@ -25,6 +25,7 @@ import { ChainExplorer } from "./Chain/ChainExplorer";
 import { RankingPanel } from "./Chain/RankingPanel";
 import { SystemPlanner } from "./System/SystemPlanner";
 import { GoalPlanner } from "./Goal/GoalPlanner";
+import { Investigator } from "./Investigate/Investigator";
 import { NotificationsPanel } from "./Notifications/NotificationsPanel";
 import {
   deliverAlerts,
@@ -55,6 +56,7 @@ type View =
   | "rebalance"
   | "chain"
   | "ranking"
+  | "investigate"
   | "system"
   | "notify"
   | "classic";
@@ -65,6 +67,7 @@ const VIEWS: View[] = [
   "rebalance",
   "chain",
   "ranking",
+  "investigate",
   "system",
   "notify",
   "classic",
@@ -345,6 +348,7 @@ export const MainGrid = () => {
           />
           <Tab value="chain" label="Chain Explorer" />
           <Tab value="ranking" label="Ranking" />
+          <Tab value="investigate" label="Investigator" />
           <Tab value="system" label="System Planner" />
           <Tab value="notify" label="Notifications" />
           <Tab value="classic" label="Classic Table" />
@@ -389,6 +393,11 @@ export const MainGrid = () => {
         {view === "ranking" && (
           <Box sx={{ p: 1 }}>
             <RankingPanel onOpen={openChain} />
+          </Box>
+        )}
+        {view === "investigate" && (
+          <Box sx={{ p: 1 }}>
+            <Investigator />
           </Box>
         )}
         {view === "system" && (
