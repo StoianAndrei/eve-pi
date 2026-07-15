@@ -18,6 +18,7 @@ import { CharacterContext, SessionContext } from "../context/Context";
 import ResponsiveAppBar from "./AppBar/AppBar";
 import { EmpireSummaryStrip } from "./EmpireSummaryStrip";
 import { PipelinePlanetCard } from "./PlanetaryInteraction/PipelinePlanetCard";
+import { planetEconomics } from "@/planet-economics";
 import { WeekManifest } from "./Manifest/WeekManifest";
 import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
@@ -135,6 +136,21 @@ export const MainGrid = () => {
   const [chainTarget, setChainTarget] = useState<number>(
     CHAIN_TARGETS[0]?.id ?? 0,
   );
+  // Planets tab: asc/desc sort + per-planet accordion state (design v3 global rules).
+  const [planetSort, setPlanetSort] = useState<{
+    key: "isk" | "uptime" | "name";
+    dir: "asc" | "desc";
+  }>({ key: "isk", dir: "desc" });
+  const [planetOpen, setPlanetOpen] = useState<Record<string, boolean>>({});
+
+  const toggleSort = (key: "isk" | "uptime" | "name") =>
+    setPlanetSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "name" ? "asc" : "desc" },
+    );
+  const togglePlanet = (k: string) =>
+    setPlanetOpen((m) => ({ ...m, [k]: !(m[k] ?? true) }));
 
   useEffect(() => {
     setDemoMode(localStorage.getItem("demoMode") === "1");
@@ -229,6 +245,27 @@ export const MainGrid = () => {
     group[account ?? ""].push(character);
     return group;
   }, {});
+
+  // Flat, econ-annotated planet list for the Planets tab (sortable + accordion).
+  const pipelineList = accountOrder.flatMap((account) =>
+    (groupByAccount[account] ?? []).flatMap((character) =>
+      character.planets.map((planet) => ({
+        key: `${character.character.characterId}-${planet.planet_id}`,
+        planet,
+        character,
+        econ: planetEconomics(planet, piPrices),
+      })),
+    ),
+  );
+  const sortedPipeline = [...pipelineList].sort((a, b) => {
+    let d = 0;
+    if (planetSort.key === "isk") d = a.econ.iskPerHourNet - b.econ.iskPerHourNet;
+    else if (planetSort.key === "uptime") d = a.econ.uptimePct - b.econ.uptimePct;
+    else d = (a.planet.infoUniverse?.name ?? "").localeCompare(b.planet.infoUniverse?.name ?? "");
+    return planetSort.dir === "asc" ? d : -d;
+  });
+  const setAllPlanets = (openAll: boolean) =>
+    setPlanetOpen(Object.fromEntries(sortedPipeline.map((e) => [e.key, openAll])));
 
   const [darkTheme, setDarkTheme] = useState(
     createTheme({
@@ -356,18 +393,55 @@ export const MainGrid = () => {
         {view === "pipeline" && (
           <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
             <FlowLegend />
-            {accountOrder.flatMap(
-              (account) =>
-                groupByAccount[account]?.flatMap((character) =>
-                  character.planets.map((planet) => (
-                    <PipelinePlanetCard
-                      key={`${character.character.characterId}-${planet.planet_id}`}
-                      planet={planet}
-                      character={character}
-                    />
-                  )),
-                ) ?? [],
-            )}
+            {/* sort + expand controls (design v3: asc/desc on every list) */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+              <Typography sx={{ fontSize: ".68rem", textTransform: "uppercase", letterSpacing: ".05em", color: "text.disabled" }}>
+                Sort
+              </Typography>
+              {([
+                ["isk", "ISK/hr"],
+                ["uptime", "Uptime"],
+                ["name", "Name"],
+              ] as const).map(([key, label]) => {
+                const active = planetSort.key === key;
+                return (
+                  <Button
+                    key={key}
+                    onClick={() => toggleSort(key)}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      borderRadius: "14px",
+                      textTransform: "none",
+                      fontSize: ".72rem",
+                      fontWeight: 600,
+                      py: 0.25,
+                      color: active ? "primary.main" : "text.secondary",
+                      borderColor: active ? "rgba(144,202,249,.5)" : "rgba(255,255,255,.18)",
+                    }}
+                  >
+                    {label}
+                    {active ? (planetSort.dir === "asc" ? " ↑" : " ↓") : ""}
+                  </Button>
+                );
+              })}
+              <Box sx={{ flex: 1 }} />
+              <Button size="small" onClick={() => setAllPlanets(true)} sx={{ textTransform: "none", fontSize: ".72rem" }}>
+                Expand all
+              </Button>
+              <Button size="small" onClick={() => setAllPlanets(false)} sx={{ textTransform: "none", fontSize: ".72rem", color: "text.secondary" }}>
+                Collapse all
+              </Button>
+            </Box>
+            {sortedPipeline.map(({ key, planet, character }) => (
+              <PipelinePlanetCard
+                key={key}
+                planet={planet}
+                character={character}
+                open={planetOpen[key] ?? true}
+                onToggle={() => togglePlanet(key)}
+              />
+            ))}
           </Box>
         )}
         {view === "week" && (

@@ -76,9 +76,13 @@ const HEALTH = {
 export function PipelinePlanetCard({
   planet,
   character,
+  open = true,
+  onToggle,
 }: {
   planet: PlanetWithInfo;
   character: AccessToken;
+  open?: boolean;
+  onToggle?: () => void;
 }) {
   const { piPrices } = useContext(SessionContext);
   const flows = planetFlows(planet);
@@ -92,15 +96,18 @@ export function PipelinePlanetCard({
       elevation={2}
       sx={{ borderRadius: "10px", overflow: "hidden", bgcolor: "#1e1e1e" }}
     >
-      {/* header */}
+      {/* header — click to expand/collapse */}
       <Box
+        onClick={onToggle}
         sx={{
           display: "flex",
           alignItems: "center",
           gap: 1.5,
           px: 2,
           py: 1.5,
-          borderBottom: "1px solid rgba(255,255,255,.06)",
+          borderBottom: open ? "1px solid rgba(255,255,255,.06)" : "none",
+          cursor: onToggle ? "pointer" : "default",
+          userSelect: "none",
         }}
       >
         <Image
@@ -129,6 +136,14 @@ export function PipelinePlanetCard({
             fontSize: ".72rem",
           }}
         />
+        <Typography sx={{ fontSize: ".7rem", fontWeight: 600, color: uptimeColor(econ.uptimePct), whiteSpace: "nowrap" }}>
+          {econ.uptimePct}% up
+        </Typography>
+        {exp && (
+          <Typography sx={{ fontSize: ".7rem", color: "text.secondary", whiteSpace: "nowrap", display: { xs: "none", sm: "block" } }}>
+            {Math.round(exp.perHour * 48).toLocaleString()} u/48h
+          </Typography>
+        )}
         <Box sx={{ flex: 1 }} />
         <Box
           sx={{
@@ -139,6 +154,7 @@ export function PipelinePlanetCard({
             borderRadius: "20px",
             px: 1.5,
             py: 0.5,
+            whiteSpace: "nowrap",
           }}
         >
           {h.label}
@@ -164,8 +180,13 @@ export function PipelinePlanetCard({
             {(Math.abs(econ.iskPerHourNet) * 720).toFixed(0)}M / mo
           </Typography>
         </Box>
+        <Typography sx={{ color: "text.secondary", fontSize: ".85rem", width: 14, textAlign: "center", flex: "none" }}>
+          {open ? "▾" : "▸"}
+        </Typography>
       </Box>
 
+      {open && (
+      <>
       {/* lanes */}
       <Box sx={{ display: "flex", alignItems: "stretch", px: 2, py: 1.75, flexWrap: "wrap" }}>
         {/* EXTRACT */}
@@ -257,6 +278,8 @@ export function PipelinePlanetCard({
           </Typography>
         </Box>
       </Box>
+      </>
+      )}
     </Paper>
   );
 }

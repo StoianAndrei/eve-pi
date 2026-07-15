@@ -67,6 +67,37 @@ function Side({ s }: { s: PlanetSwapSide }) {
           </Typography>
         </Box>
       </Box>
+      {/* now / after comparison bars (design v3: vertical bar charts for comparisons) */}
+      <NowAfterBars nowIsk={s.nowIsk} newIsk={s.newIsk} />
+    </Box>
+  );
+}
+
+/** Two-bar comparison: current loss vs. post-swap gain, scaled to the larger magnitude. */
+function NowAfterBars({ nowIsk, newIsk }: { nowIsk: number; newIsk: number }) {
+  const maxMag = Math.max(Math.abs(nowIsk), Math.abs(newIsk), 1);
+  const px = (v: number) => Math.max(6, Math.round((Math.abs(v) / maxMag) * 72));
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "flex-end",
+        gap: 2.75,
+        height: 80,
+        mt: 1.75,
+        px: 1,
+        borderTop: "1px dashed rgba(255,255,255,.08)",
+      }}
+    >
+      {[
+        { label: `now ${nowIsk.toFixed(2)}`, h: px(nowIsk), bar: "rgba(244,67,54,.8)", text: "#f28b82" },
+        { label: `after +${newIsk.toFixed(2)}`, h: px(newIsk), bar: "rgba(102,187,106,.85)", text: "#8bbf8e" },
+      ].map((b) => (
+        <Box key={b.label} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>
+          <Box sx={{ width: 36, height: b.h, bgcolor: b.bar, borderRadius: "4px 4px 0 0" }} />
+          <Typography sx={{ fontSize: ".62rem", color: b.text }}>{b.label}</Typography>
+        </Box>
+      ))}
     </Box>
   );
 }
