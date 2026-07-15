@@ -6,7 +6,7 @@ import { Box, Paper, Typography, Button, LinearProgress, Chip } from "@mui/mater
 import { AccessToken } from "@/types";
 import { SessionContext } from "@/app/context/Context";
 import { EVE_IMAGE_URL } from "@/const";
-import { nameOf, TIER_COLORS } from "@/pi-tiers";
+import { nameOf } from "@/pi-tiers";
 import { fmtIsk } from "@/pi-chain";
 import { characterManifests, estateManifest, ManifestLine } from "./manifest";
 
@@ -81,79 +81,132 @@ export function WeekManifest({ characters }: { characters: AccessToken[] }) {
       </Box>
 
       {mode === "character" && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-          {perCharacter.map((c) => (
-            <Paper key={c.name} elevation={2} sx={{ borderRadius: "10px", overflow: "hidden", bgcolor: "#1e1e1e" }}>
-              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, px: 2, py: 1.5, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-                <Typography sx={{ fontWeight: 600, fontSize: ".95rem" }}>{c.name}</Typography>
-                {c.systems.map((s) => (
-                  <Chip key={s} size="small" label={s} sx={{ height: 20, fontSize: ".66rem", bgcolor: "#242424" }} />
-                ))}
-                <Typography sx={{ fontSize: ".74rem", color: "text.secondary" }}>
-                  {c.planetCount} planets · {c.extractingCount} extracting
-                </Typography>
-                <Box sx={{ flex: 1 }} />
-                <Typography sx={{ fontSize: ".76rem", color: "text.secondary" }}>
-                  {cadenceLabel}: carry OUT{" "}
-                  <b style={{ color: "#f5cf74" }}>
-                    {c.carryOut[0] ? `${fmtIsk(c.carryOut[0].units)} ${nameOf(c.carryOut[0].typeId)}` : "nothing"}
-                  </b>
-                  , bring IN {c.bringIn.length} input{c.bringIn.length === 1 ? "" : "s"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", flexWrap: "wrap" }}>
-                <Box sx={{ flex: 1, minWidth: 280, borderRight: "1px solid rgba(255,255,255,.05)", pb: 1 }}>
-                  <Typography sx={{ px: 1.75, pt: 1.25, pb: 0.5, fontSize: ".7rem", textTransform: "uppercase", letterSpacing: ".05em", color: "#f5cf74" }}>
-                    Carry out ↑
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {perCharacter.map((c) => {
+            const outVol = c.carryOut.reduce((s, l) => s + l.volume, 0);
+            const inVol = c.bringIn.reduce((s, l) => s + l.volume, 0);
+            const outVal = c.carryOut.reduce((s, l) => s + l.isk, 0);
+            const outTrips = Math.max(1, Math.ceil(outVol / haulerCapacityM3));
+            const inTrips = Math.max(1, Math.ceil(inVol / haulerCapacityM3));
+            const cInPct = Math.min(100, Math.round((inVol / haulerCapacityM3) * 100));
+            const cOutPct = Math.min(100, Math.round((outVol / haulerCapacityM3) * 100));
+            return (
+              <Paper key={c.name} elevation={2} sx={{ borderRadius: "10px", overflow: "hidden", bgcolor: "#1e1e1e" }}>
+                {/* character header */}
+                <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.25, px: 2, py: 1.5, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: ".95rem" }}>{c.name}</Typography>
+                  {c.systems.map((s) => (
+                    <Chip key={s} size="small" label={s} sx={{ height: 20, fontSize: ".66rem", bgcolor: "#242424" }} />
+                  ))}
+                  <Typography sx={{ fontSize: ".74rem", color: "text.secondary" }}>
+                    {c.planetCount} planets · {c.extractingCount} extracting
                   </Typography>
-                  {c.carryOut.map((l) => (
-                    <Box key={l.typeId} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.75, py: 0.55 }}>
-                      <Typography sx={{ fontSize: ".62rem", fontWeight: 700, color: TIER_COLORS[l.tier ?? "P0"], border: `1px solid ${TIER_COLORS[l.tier ?? "P0"]}`, borderRadius: "4px", px: 0.5 }}>
-                        {l.tier}
+                  <Box sx={{ flex: 1 }} />
+                  <Typography sx={{ fontSize: ".76rem", color: "text.secondary" }}>{cadenceLabel}</Typography>
+                </Box>
+
+                {/* fly-in / carry-out — the exact units to carry each trip */}
+                <Box sx={{ display: "flex", flexWrap: "wrap" }}>
+                  {/* BRING IN */}
+                  <Box sx={{ flex: 1, minWidth: 300, borderRight: "1px solid rgba(255,255,255,.05)" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.75, py: 1, bgcolor: "rgba(124,182,242,.08)", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+                      <Box sx={{ color: "#7cb6f2", fontSize: "1.05rem", fontWeight: 700 }}>↓</Box>
+                      <Typography sx={{ fontSize: ".82rem", fontWeight: 500, color: "#a9d1f7" }}>Bring in — P1 counterparts</Typography>
+                    </Box>
+                    {c.bringIn.map((l) => (
+                      <Box key={l.typeId} sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.75, py: 1, borderBottom: "1px solid rgba(255,255,255,.05)" }}>
+                        <Image src={ICON(l.typeId)} alt="" width={26} height={26} unoptimized />
+                        <Box sx={{ flex: 1 }}>
+                          <Typography sx={{ fontSize: ".84rem" }}>{nameOf(l.typeId)}</Typography>
+                          <Typography sx={{ fontSize: ".68rem", color: l.sourceHint ? "success.main" : "text.secondary" }}>
+                            {l.sourceHint ?? "buy / haul in"}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: "right" }}>
+                          <Typography sx={{ fontSize: ".92rem", fontWeight: 500, color: "#7cb6f2" }}>{u(l.units)}</Typography>
+                          <Typography sx={{ fontSize: ".66rem", color: "text.secondary" }}>{m3(l.volume)}</Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                    {c.bringIn.length === 0 && (
+                      <Typography sx={{ px: 1.75, py: 1.25, fontSize: ".76rem", color: "text.disabled" }}>self-sufficient</Typography>
+                    )}
+                    <Box sx={{ display: "flex", alignItems: "center", px: 1.75, py: 1, bgcolor: "#191919" }}>
+                      <Typography sx={{ fontSize: ".72rem", color: "text.secondary" }}>To haul in</Typography>
+                      <Box sx={{ flex: 1 }} />
+                      <Typography sx={{ fontSize: ".82rem", fontWeight: 600, color: "#a9d1f7" }}>
+                        {m3(inVol)} · {inTrips} trip{inTrips > 1 ? "s" : ""}
                       </Typography>
-                      <Typography sx={{ fontSize: ".84rem", fontWeight: 500, color: "#f5cf74", minWidth: 56, textAlign: "right" }}>
-                        {fmtIsk(l.units)}
+                    </Box>
+                  </Box>
+
+                  {/* CARRY OUT */}
+                  <Box sx={{ flex: 1, minWidth: 300 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.75, py: 1, bgcolor: "rgba(242,193,78,.08)", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+                      <Box sx={{ color: "#f2c14e", fontSize: "1.05rem", fontWeight: 700 }}>↑</Box>
+                      <Typography sx={{ fontSize: ".82rem", fontWeight: 500, color: "#f5cf74" }}>Carry out — to sell</Typography>
+                    </Box>
+                    {c.carryOut.map((l) => (
+                      <Box key={l.typeId} sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.75, py: 1, borderBottom: "1px solid rgba(255,255,255,.05)" }}>
+                        <Image src={ICON(l.typeId)} alt="" width={26} height={26} unoptimized />
+                        <Box sx={{ flex: 1 }}>
+                          <Typography sx={{ fontSize: ".84rem" }}>{nameOf(l.typeId)}</Typography>
+                          <Typography sx={{ fontSize: ".68rem", color: "text.secondary" }}>{m3(l.volume)}</Typography>
+                        </Box>
+                        <Box sx={{ textAlign: "right" }}>
+                          <Typography sx={{ fontSize: ".92rem", fontWeight: 500, color: "#f5cf74" }}>
+                            {u(l.units)}
+                            <Typography component="span" sx={{ fontSize: ".66rem", color: "text.secondary", fontWeight: 400 }}> u</Typography>
+                          </Typography>
+                          <Typography sx={{ fontSize: ".72rem", color: "success.main" }}>{l.isk.toFixed(0)}M ISK</Typography>
+                        </Box>
+                      </Box>
+                    ))}
+                    {c.carryOut.length === 0 && (
+                      <Typography sx={{ px: 1.75, py: 1.25, fontSize: ".76rem", color: "text.disabled" }}>nothing to export</Typography>
+                    )}
+                    <Box sx={{ display: "flex", alignItems: "center", px: 1.75, py: 1, bgcolor: "#191919" }}>
+                      <Typography sx={{ fontSize: ".72rem", color: "text.secondary" }}>Value this run</Typography>
+                      <Box sx={{ flex: 1 }} />
+                      <Typography sx={{ fontSize: ".82rem", fontWeight: 600, color: "success.main" }}>{outVal.toFixed(0)}M ISK</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                {/* per-character Epithal loads — exact units per trip */}
+                <Box sx={{ px: 2, py: 1.5, bgcolor: "#161616", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                  <Typography sx={{ fontSize: ".72rem", color: "text.secondary", mb: 1 }}>
+                    This trip — Epithal loads (hold {haulerCapacityM3.toLocaleString()} m³)
+                  </Typography>
+                  {[
+                    { label: "Fly in", pct: cInPct, vol: inVol, trips: inTrips, color: "#7cb6f2" },
+                    { label: "Fly out", pct: cOutPct, vol: outVol, trips: outTrips, color: "#f2c14e" },
+                  ].map((r) => (
+                    <Box key={r.label} sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.75 }}>
+                      <Typography sx={{ fontSize: ".74rem", color: r.color, width: 58, flex: "none" }}>{r.label}</Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={r.pct}
+                        sx={{ flex: 1, height: 10, borderRadius: 5, bgcolor: "rgba(255,255,255,.08)", "& .MuiLinearProgress-bar": { bgcolor: r.color } }}
+                      />
+                      <Typography sx={{ fontSize: ".72rem", color: "text.secondary", width: 190, flex: "none", textAlign: "right" }}>
+                        {m3(r.vol)} · {r.trips} trip{r.trips > 1 ? "s" : ""} · {r.pct}%
                       </Typography>
-                      <Typography sx={{ fontSize: ".82rem" }}>{nameOf(l.typeId)}</Typography>
                     </Box>
                   ))}
-                  {c.carryOut.length === 0 && (
-                    <Typography sx={{ px: 1.75, py: 1, fontSize: ".76rem", color: "text.disabled" }}>nothing to export</Typography>
-                  )}
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 300, pb: 1 }}>
-                  <Typography sx={{ px: 1.75, pt: 1.25, pb: 0.5, fontSize: ".7rem", textTransform: "uppercase", letterSpacing: ".05em", color: "#7cb6f2" }}>
-                    Bring in ↓
-                  </Typography>
-                  {c.bringIn.map((l) => (
-                    <Box key={l.typeId} sx={{ display: "flex", alignItems: "center", gap: 1, px: 1.75, py: 0.55 }}>
-                      <Typography sx={{ fontSize: ".62rem", fontWeight: 700, color: TIER_COLORS[l.tier ?? "P0"], border: `1px solid ${TIER_COLORS[l.tier ?? "P0"]}`, borderRadius: "4px", px: 0.5 }}>
-                        {l.tier}
-                      </Typography>
-                      <Typography sx={{ fontSize: ".84rem", fontWeight: 500, color: "#7cb6f2", minWidth: 56, textAlign: "right" }}>
-                        {fmtIsk(l.units)}
-                      </Typography>
-                      <Typography sx={{ fontSize: ".82rem", flex: 1 }}>{nameOf(l.typeId)}</Typography>
-                      <Typography sx={{ fontSize: ".68rem", color: l.sourceHint ? "success.main" : "text.disabled" }}>
-                        {l.sourceHint ?? "buy / haul in"}
-                      </Typography>
-                    </Box>
-                  ))}
-                  {c.bringIn.length === 0 && (
-                    <Typography sx={{ px: 1.75, py: 1, fontSize: ".76rem", color: "text.disabled" }}>self-sufficient</Typography>
-                  )}
-                </Box>
-              </Box>
-              {c.extraction.length > 0 && (
-                <Box sx={{ px: 2, py: 1, bgcolor: "#191919", borderTop: "1px solid rgba(255,255,255,.05)" }}>
-                  <Typography sx={{ fontSize: ".7rem", color: "text.disabled" }}>
-                    Backed by extraction (per {days}d, at current head rates):{" "}
-                    {c.extraction.slice(0, 6).map((e) => `${fmtIsk(e.perPeriod)} ${e.name}`).join(" · ")}
-                  </Typography>
-                </Box>
-              )}
-            </Paper>
-          ))}
+
+                {c.extraction.length > 0 && (
+                  <Box sx={{ px: 2, py: 1, bgcolor: "#191919", borderTop: "1px solid rgba(255,255,255,.05)" }}>
+                    <Typography sx={{ fontSize: ".7rem", color: "text.disabled" }}>
+                      Backed by extraction (per {days}d, at current head rates):{" "}
+                      {c.extraction.slice(0, 6).map((e) => `${fmtIsk(e.perPeriod)} ${e.name}`).join(" · ")}
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
+            );
+          })}
         </Box>
       )}
 
