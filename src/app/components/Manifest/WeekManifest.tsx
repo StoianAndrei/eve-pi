@@ -47,9 +47,9 @@ function Row({ line, side }: { line: ManifestLine; side: "in" | "out" }) {
 
 export function WeekManifest({ characters }: { characters: AccessToken[] }) {
   const { piPrices } = useContext(SessionContext);
-  const [visitHours, setVisitHours] = useState(168);
+  const [visitHours, setVisitHours] = useState(48);
   const [haulerCapacityM3] = useState(45_000);
-  const [mode, setMode] = useState<"character" | "estate">("character");
+  const [mode, setMode] = useState<"character" | "estate">("estate");
   const man = estateManifest(characters, piPrices, { visitHours, haulerCapacityM3 });
   const perCharacter = characterManifests(characters, piPrices, { visitHours });
 
@@ -267,21 +267,28 @@ export function WeekManifest({ characters }: { characters: AccessToken[] }) {
           </Box>
         ))}
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3, mt: 2, pt: 1.75, borderTop: "1px solid rgba(255,255,255,.08)", alignItems: "center" }}>
+          <Metric label="Routine" value={`${man.inTrips + man.outTrips} trips · ${cadenceLabel}`} plain />
           <Metric label="P2 value / run" value={`${man.outValue.toFixed(0)}M ISK`} />
           <Metric label="Projected / month" value={`${((man.outValue * (24 / visitHours) * 30) / 1000).toFixed(1)}B ISK`} />
           <Box sx={{ flex: 1 }} />
           <Button variant="contained" sx={{ fontWeight: 600 }}>Copy manifest</Button>
         </Box>
       </Paper>
+      <Typography sx={{ fontSize: ".72rem", color: "text.disabled", mt: 1.5, maxWidth: 820, lineHeight: 1.6 }}>
+        Fly-in is ordered by net deficit. Internal lines move between your own bases (no market
+        cost); market buys are flagged per line. Loss-planet output is excluded — fix those in{" "}
+        <b style={{ color: "rgba(255,255,255,.6)" }}>Rebalance</b> to add them to the payload.
+        Cadence, buffer multiple and hauler capacity are editable above.
+      </Typography>
       </>
       )}
     </Box>
   );
 }
 
-const Metric = ({ label, value }: { label: string; value: string }) => (
+const Metric = ({ label, value, plain }: { label: string; value: string; plain?: boolean }) => (
   <Box>
     <Typography sx={{ fontSize: ".68rem", textTransform: "uppercase", letterSpacing: ".05em", color: "text.secondary" }}>{label}</Typography>
-    <Typography sx={{ fontSize: ".95rem", fontWeight: 500, color: "success.main", mt: 0.25 }}>{value}</Typography>
+    <Typography sx={{ fontSize: ".95rem", fontWeight: 500, color: plain ? "text.primary" : "success.main", mt: 0.25 }}>{value}</Typography>
   </Box>
 );
