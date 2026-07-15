@@ -5,7 +5,7 @@ import PlausibleProvider from 'next-plausible'
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "EVE PI",
+  title: "EVE U PIG",
   description: "Lets PI!",
 };
 

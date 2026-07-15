@@ -62,7 +62,7 @@ function ResponsiveAppBar() {
               textDecoration: "none",
             }}
           >
-            EVE PI
+            EVE U PIG
           </Typography>
 
           <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
@@ -155,7 +155,7 @@ function ResponsiveAppBar() {
               textDecoration: "none",
             }}
           >
-            EVE PI
+            EVE U PIG
           </Typography>
           <Box
             sx={{
