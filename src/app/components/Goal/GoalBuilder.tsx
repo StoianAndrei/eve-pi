@@ -2,17 +2,20 @@
 
 import { useContext, useMemo, useState } from "react";
 import Image from "next/image";
-import { Box, Paper, Typography, Select, MenuItem, TextField, Button } from "@mui/material";
+import { Box, Paper, Typography, Select, MenuItem, TextField, Button, Chip } from "@mui/material";
 import { SessionContext } from "@/app/context/Context";
 import { EVE_IMAGE_URL } from "@/const";
 import { TIER_COLORS } from "@/pi-tiers";
-import { GOALS, goalBuild, iskShort } from "@/pi-goal-build";
+import { GOALS, goalBuild, iskShort, dur, GoalSummary } from "@/pi-goal-build";
 
 /**
- * Goal tab (design v3): start at the item you want to build; the PI plan and
- * economics derive from it. Sample blueprints + live PI prices.
+ * Goal / Build analyzer (design v3 + eveindustry factory-planner depth).
+ * Start at the item you want to build; the bill of materials, production time
+ * and Full-Buy vs Full-Build economics derive from it. PI rows are highlighted
+ * and traceable to P0 — your empire supplies them.
  */
 const ICON = (id: number, size = 32) => `${EVE_IMAGE_URL}/types/${id}/icon?size=${size}`;
+const m3 = (n: number) => Math.round(n).toLocaleString() + " m³";
 
 export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
   const { piPrices } = useContext(SessionContext);
@@ -20,21 +23,22 @@ export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
   const [runs, setRuns] = useState<number>(GOALS[0].runsDefault);
 
   const a = useMemo(() => goalBuild(goalId, runs, piPrices), [goalId, runs, piPrices]);
-  const profitColor = a.profit >= 0 ? "#66bb6a" : "#f44336";
   const maxDays = Math.max(...a.footprint.map((f) => f.days), 1);
-  const buyBase = Math.max(a.fullBuy, a.selfBuild, 1);
+  const buyBase = Math.max(a.matBuy, a.matBuild, 1);
+  const headlineColor = a.buy.net >= 0 ? "#66bb6a" : "#f44336";
 
   return (
     <Box>
       <Typography sx={{ fontSize: "1.05rem", fontWeight: 500, mb: 0.25 }}>
         Goal{" "}
         <Typography component="span" sx={{ color: "text.disabled", fontWeight: 400, fontSize: ".85rem" }}>
-          · start at the item you want to build — the PI plan derives from it
+          · start at the item you want to build — the PI plan &amp; economics derive from it
         </Typography>
       </Typography>
-      <Typography sx={{ fontSize: ".75rem", color: "text.disabled", mb: 1.75, maxWidth: 900 }}>
-        Demand comes from destruction: ships, structures and fuel that get blown up consume PI.
-        Sample blueprints &amp; prices — a real build searches every blueprint (SDE) with live prices.
+      <Typography sx={{ fontSize: ".75rem", color: "text.disabled", mb: 1.75, maxWidth: 940 }}>
+        Demand comes from destruction: ships, structures and deployables that get blown up consume
+        PI. Sample blueprints &amp; prices — a real build reads every blueprint (SDE) with live
+        prices. Full-Build assumes ME10 components.
       </Typography>
 
       {/* controls */}
@@ -51,7 +55,7 @@ export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
               setGoalId(id);
               setRuns(GOALS.find((g) => g.id === id)?.runsDefault ?? 100);
             }}
-            sx={{ minWidth: 220, bgcolor: "#242424", fontSize: ".85rem" }}
+            sx={{ minWidth: 240, bgcolor: "#242424", fontSize: ".85rem" }}
           >
             {GOALS.map((g) => (
               <MenuItem key={g.id} value={g.id} sx={{ fontSize: ".85rem" }}>
@@ -72,31 +76,37 @@ export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
             sx={{ width: 110, bgcolor: "#242424", "& input": { fontSize: ".85rem" } }}
           />
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, bgcolor: "#191919", border: "1px solid rgba(255,255,255,.08)", borderRadius: "8px", px: 1.75, py: 1 }}>
-          <Image src={ICON(a.goal.id)} alt="" width={30} height={30} unoptimized />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, bgcolor: "#191919", border: "1px solid rgba(255,255,255,.08)", borderRadius: "8px", px: 1.75, py: 1 }}>
+          <Image src={ICON(a.goal.id, 40)} alt="" width={38} height={38} unoptimized />
           <Box>
-            <Typography sx={{ fontSize: ".9rem", fontWeight: 500 }}>{a.goal.name}</Typography>
+            <Typography sx={{ fontSize: ".92rem", fontWeight: 500 }}>{a.goal.name}</Typography>
             <Typography sx={{ fontSize: ".68rem", color: "text.disabled" }}>
               {a.goal.note} · {a.outUnits.toLocaleString()} units out
             </Typography>
           </Box>
+          <Chip
+            size="small"
+            label={`${dur(a.perRunSec)} / run · ${dur(a.totalSec)} total`}
+            sx={{ ml: 0.5, height: 22, fontSize: ".66rem", bgcolor: "#242424" }}
+          />
         </Box>
       </Box>
 
-      {/* econ strip */}
+      {/* cost & profit headline */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25, mb: 2 }}>
         {[
           { label: "Output value", value: iskShort(a.revenue), color: "#66bb6a" },
-          { label: "Material cost", value: iskShort(a.matCost), color: "#f0a5a0" },
-          { label: "SCC fee (4%)", value: iskShort(a.scc), color: "#f0a5a0" },
-          { label: "Net profit", value: iskShort(a.profit), color: profitColor },
-          { label: "Margin", value: (a.margin * 100).toFixed(1) + "%", color: profitColor },
+          { label: "Material cost (buy)", value: iskShort(a.matBuy), color: "#f0a5a0" },
+          { label: "Net profit (buy)", value: iskShort(a.buy.net), color: headlineColor },
+          { label: "Margin", value: (a.buy.margin * 100).toFixed(1) + "%", color: headlineColor },
+          { label: "Per unit", value: iskShort(a.buy.perUnit) + " / u", color: headlineColor },
+          { label: "Total volume", value: m3(a.totalVol), color: "#c9ccd1" },
         ].map((m) => (
-          <Paper key={m.label} elevation={0} sx={{ flex: 1, minWidth: 120, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "8px", px: 1.75, py: 1.5 }}>
-            <Typography sx={{ fontSize: ".68rem", textTransform: "uppercase", letterSpacing: ".05em", color: "text.secondary" }}>
+          <Paper key={m.label} elevation={0} sx={{ flex: 1, minWidth: 130, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "8px", px: 1.75, py: 1.5 }}>
+            <Typography sx={{ fontSize: ".66rem", textTransform: "uppercase", letterSpacing: ".05em", color: "text.secondary" }}>
               {m.label}
             </Typography>
-            <Typography sx={{ fontSize: "1.2rem", fontWeight: 500, color: m.color, mt: 0.25 }}>
+            <Typography sx={{ fontSize: "1.15rem", fontWeight: 500, color: m.color, mt: 0.25 }}>
               {m.value}
             </Typography>
           </Paper>
@@ -104,57 +114,112 @@ export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "flex-start" }}>
-        {/* bill of materials */}
-        <Paper elevation={0} sx={{ flex: 1.4, minWidth: 340, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", overflow: "hidden" }}>
+        {/* materials table */}
+        <Paper elevation={0} sx={{ flex: 1.5, minWidth: 360, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", overflow: "hidden" }}>
           <Box sx={{ display: "flex", alignItems: "center", px: 1.75, py: 1.25, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-            <Typography sx={{ fontSize: ".85rem", fontWeight: 500 }}>Bill of materials</Typography>
+            <Typography sx={{ fontSize: ".85rem", fontWeight: 500 }}>Materials</Typography>
             <Box sx={{ flex: 1 }} />
-            <Typography sx={{ fontSize: ".68rem", color: "text.disabled" }}>PI rows highlighted — trace them to P0</Typography>
+            <Typography sx={{ fontSize: ".68rem", color: "text.disabled" }}>PI rows highlighted — trace to P0</Typography>
           </Box>
-          {a.rows.map((r) => {
-            const tcolor = r.tier ? TIER_COLORS[r.tier] : "rgba(255,255,255,.14)";
-            return (
-              <Box
-                key={r.id}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.25,
-                  px: 1.75,
-                  py: 1,
-                  borderBottom: "1px solid rgba(255,255,255,.04)",
-                  borderLeft: `3px solid ${tcolor}`,
-                  bgcolor: r.isPi ? `${tcolor}22` : "transparent",
-                }}
-              >
-                <Image src={ICON(r.id, 24)} alt="" width={24} height={24} unoptimized />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: ".82rem" }}>{r.name}</Typography>
-                  <Typography sx={{ fontSize: ".64rem", color: "text.disabled" }}>
-                    {r.qtyRun.toLocaleString()} / run · {r.srcLabel}
+          <Box sx={{ overflowX: "auto" }}>
+            {/* header */}
+            <Box sx={{ display: "grid", gridTemplateColumns: "1.7fr .8fr .8fr .9fr .9fr", gap: 1, px: 1.75, py: 0.75, minWidth: 560, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+              {["Material", "Qty", "Vol", "Buy cost", "Build cost"].map((h, i) => (
+                <Typography key={h} sx={{ fontSize: ".64rem", textTransform: "uppercase", letterSpacing: ".04em", color: "text.secondary", textAlign: i === 0 ? "left" : "right" }}>
+                  {h}
+                </Typography>
+              ))}
+            </Box>
+            {a.rows.map((r) => {
+              const tcolor = r.tier ? TIER_COLORS[r.tier] : "rgba(255,255,255,.14)";
+              return (
+                <Box
+                  key={r.id}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "1.7fr .8fr .8fr .9fr .9fr",
+                    gap: 1,
+                    alignItems: "center",
+                    px: 1.75,
+                    py: 1,
+                    minWidth: 560,
+                    borderBottom: "1px solid rgba(255,255,255,.04)",
+                    borderLeft: `3px solid ${tcolor}`,
+                    bgcolor: r.isPi ? `${tcolor}1f` : "transparent",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                    <Image src={ICON(r.id, 28)} alt="" width={26} height={26} unoptimized />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: ".82rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {r.name}
+                      </Typography>
+                      <Typography sx={{ fontSize: ".62rem", color: "text.disabled" }}>
+                        {r.tier ? `${r.tier} · ` : ""}{r.srcLabel}
+                      </Typography>
+                    </Box>
+                    {r.traceable && (
+                      <Button
+                        onClick={() => onTrace(r.id)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ minWidth: 0, fontSize: ".62rem", fontWeight: 600, py: 0, px: 0.75, ml: 0.25, color: "primary.main", borderColor: "rgba(144,202,249,.45)", whiteSpace: "nowrap" }}
+                      >
+                        Trace →
+                      </Button>
+                    )}
+                  </Box>
+                  <Typography sx={{ fontSize: ".78rem", textAlign: "right" }}>{Math.round(r.qtyTotal).toLocaleString()}</Typography>
+                  <Typography sx={{ fontSize: ".72rem", textAlign: "right", color: "text.secondary" }}>{Math.round(r.vol).toLocaleString()}</Typography>
+                  <Typography sx={{ fontSize: ".78rem", textAlign: "right", color: "#f0a5a0" }}>{iskShort(r.buyCost)}</Typography>
+                  <Typography sx={{ fontSize: ".78rem", textAlign: "right", color: r.buildable ? "#8bbf8e" : "text.disabled" }}>
+                    {r.buildable ? iskShort(r.buildCost) : "—"}
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: "right" }}>
-                  <Typography sx={{ fontSize: ".82rem", fontWeight: 500 }}>{r.qtyTotal.toLocaleString()}</Typography>
-                  <Typography sx={{ fontSize: ".64rem", color: "#8bbf8e" }}>{iskShort(r.cost)}</Typography>
-                </Box>
-                {r.traceable && (
-                  <Button
-                    onClick={() => onTrace(r.id)}
-                    size="small"
-                    variant="outlined"
-                    sx={{ minWidth: 0, fontSize: ".66rem", fontWeight: 600, py: 0.25, px: 1, color: "primary.main", borderColor: "rgba(144,202,249,.45)", whiteSpace: "nowrap" }}
-                  >
-                    Trace →
-                  </Button>
-                )}
-              </Box>
-            );
-          })}
+              );
+            })}
+            {/* totals */}
+            <Box sx={{ display: "grid", gridTemplateColumns: "1.7fr .8fr .8fr .9fr .9fr", gap: 1, px: 1.75, py: 1, minWidth: 560, bgcolor: "#191919" }}>
+              <Typography sx={{ fontSize: ".74rem", fontWeight: 600 }}>Totals</Typography>
+              <Box />
+              <Typography sx={{ fontSize: ".72rem", textAlign: "right", color: "text.secondary" }}>{Math.round(a.totalVol).toLocaleString()}</Typography>
+              <Typography sx={{ fontSize: ".8rem", textAlign: "right", fontWeight: 600, color: "#f0a5a0" }}>{iskShort(a.matBuy)}</Typography>
+              <Typography sx={{ fontSize: ".8rem", textAlign: "right", fontWeight: 600, color: "#8bbf8e" }}>{iskShort(a.matBuild)}</Typography>
+            </Box>
+          </Box>
         </Paper>
 
-        {/* PI footprint + buy vs build */}
+        {/* right column */}
         <Box sx={{ flex: 1, minWidth: 300, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {/* build vs buy */}
+          <Paper elevation={0} sx={{ bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", px: 1.75, py: 1.5 }}>
+            <Typography sx={{ fontSize: ".85rem", fontWeight: 500, mb: 1.25 }}>Build vs buy</Typography>
+            <Box sx={{ display: "flex", alignItems: "flex-end", gap: 3.25, px: 1 }}>
+              <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+                <Typography sx={{ fontSize: ".66rem", color: "#f0a5a0" }}>{iskShort(a.matBuy)}</Typography>
+                <Box sx={{ width: 40, height: Math.max(6, Math.round((a.matBuy / buyBase) * 90)), bgcolor: "rgba(244,67,54,.75)", borderRadius: "4px 4px 0 0" }} />
+                <Typography sx={{ fontSize: ".64rem", color: "text.secondary" }}>full buy</Typography>
+              </Box>
+              <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+                <Typography sx={{ fontSize: ".66rem", color: "#8bbf8e" }}>{iskShort(a.matBuild)}</Typography>
+                <Box sx={{ width: 40, height: Math.max(6, Math.round((a.matBuild / buyBase) * 90)), bgcolor: "rgba(102,187,106,.8)", borderRadius: "4px 4px 0 0" }} />
+                <Typography sx={{ fontSize: ".64rem", color: "text.secondary" }}>full build (ME10)</Typography>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: ".72rem", color: a.buildIsCheaper ? "#8bbf8e" : "#f0a5a0", mt: 1, textAlign: "center" }}>
+              {a.buildIsCheaper
+                ? `✓ Building components saves ${iskShort(a.matBuy - a.matBuild)}`
+                : "Buying components is cheaper here"}
+            </Typography>
+          </Paper>
+
+          {/* the two summaries */}
+          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+            <SummaryCard title="Summary (Full Buy)" s={a.buy} accent="#f0a5a0" />
+            <SummaryCard title="Summary (Full Build)" s={a.build} accent="#8bbf8e" />
+          </Box>
+
+          {/* PI footprint */}
           <Paper elevation={0} sx={{ bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", px: 1.75, py: 1.5 }}>
             <Typography sx={{ fontSize: ".85rem", fontWeight: 500, mb: 0.25 }}>
               PI footprint{" "}
@@ -164,43 +229,60 @@ export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {
             </Typography>
             <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.25, mt: 1.25, overflowX: "auto" }}>
               {a.footprint.map((f) => (
-                <Box key={f.id} sx={{ flex: 1, minWidth: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+                <Box key={f.id} sx={{ flex: 1, minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
                   <Typography sx={{ fontSize: ".62rem", color: "#8bbf8e", whiteSpace: "nowrap" }}>
                     {f.days.toFixed(f.days < 10 ? 1 : 0)}d
                   </Typography>
-                  <Box sx={{ width: 26, height: Math.max(6, Math.round((f.days / maxDays) * 90)), bgcolor: f.tier ? TIER_COLORS[f.tier] : "#7d8a9c", borderRadius: "4px 4px 0 0" }} />
-                  <Image src={ICON(f.id, 24)} alt="" width={22} height={22} unoptimized />
-                  <Typography sx={{ fontSize: ".6rem", color: "text.secondary", textAlign: "center", lineHeight: 1.2, maxWidth: 76, height: 22, overflow: "hidden" }}>
+                  <Box sx={{ width: 28, height: Math.max(6, Math.round((f.days / maxDays) * 90)), bgcolor: f.tier ? TIER_COLORS[f.tier] : "#7d8a9c", borderRadius: "4px 4px 0 0" }} />
+                  <Image src={ICON(f.id, 32)} alt="" width={28} height={28} unoptimized />
+                  <Typography sx={{ fontSize: ".6rem", color: "text.secondary", textAlign: "center", lineHeight: 1.2, maxWidth: 80, height: 22, overflow: "hidden" }}>
                     {f.name}
                   </Typography>
                 </Box>
               ))}
+              {a.footprint.length === 0 && (
+                <Typography sx={{ fontSize: ".74rem", color: "text.disabled", py: 1 }}>No PI in this build.</Typography>
+              )}
             </Box>
             <Typography sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>
               Total ≈ <b style={{ color: "#fff" }}>{a.totalDays.toFixed(0)} factory-days</b> — parallelize across planets to compress
             </Typography>
-          </Paper>
-
-          <Paper elevation={0} sx={{ bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", px: 1.75, py: 1.5 }}>
-            <Typography sx={{ fontSize: ".85rem", fontWeight: 500, mb: 1.25 }}>Buy PI vs build it yourself</Typography>
-            <Box sx={{ display: "flex", alignItems: "flex-end", gap: 3.25, px: 1 }}>
-              <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-                <Typography sx={{ fontSize: ".66rem", color: "#f0a5a0" }}>{iskShort(a.fullBuy)}</Typography>
-                <Box sx={{ width: 38, height: Math.max(6, Math.round((a.fullBuy / buyBase) * 90)), bgcolor: "rgba(244,67,54,.75)", borderRadius: "4px 4px 0 0" }} />
-                <Typography sx={{ fontSize: ".64rem", color: "text.secondary" }}>buy all mats</Typography>
-              </Box>
-              <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-                <Typography sx={{ fontSize: ".66rem", color: "#8bbf8e" }}>{iskShort(a.selfBuild)}</Typography>
-                <Box sx={{ width: 38, height: Math.max(6, Math.round((a.selfBuild / buyBase) * 90)), bgcolor: "rgba(102,187,106,.8)", borderRadius: "4px 4px 0 0" }} />
-                <Typography sx={{ fontSize: ".64rem", color: "text.secondary" }}>self-built PI</Typography>
-              </Box>
-            </Box>
-            <Typography sx={{ fontSize: ".7rem", color: "#8bbf8e", mt: 1, textAlign: "center" }}>
-              Your PI empire keeps ≈ {iskShort(a.saved)} of the material bill
-            </Typography>
+            {a.piCost > 0 && (
+              <Typography sx={{ fontSize: ".72rem", color: "#8bbf8e", mt: 0.75 }}>
+                Your PI empire keeps ≈ <b>{iskShort(a.piCost)}</b> of the material bill.
+              </Typography>
+            )}
           </Paper>
         </Box>
       </Box>
     </Box>
+  );
+}
+
+function SummaryCard({ title, s, accent }: { title: string; s: GoalSummary; accent: string }) {
+  const netColor = s.net >= 0 ? "#66bb6a" : "#f44336";
+  const rows: [string, string, string?][] = [
+    ["Material cost", iskShort(s.matCost)],
+    ["SCC fee (4%)", iskShort(s.scc)],
+    ["Total cost", iskShort(s.totalCost)],
+    ["Output value", iskShort(s.revenue)],
+    ["Net profit", iskShort(s.net), netColor],
+    ["Margin", (s.margin * 100).toFixed(1) + "%", netColor],
+    ["Per unit", iskShort(s.perUnit) + " / u", netColor],
+  ];
+  return (
+    <Paper elevation={0} sx={{ flex: 1, minWidth: 200, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", overflow: "hidden" }}>
+      <Typography sx={{ fontSize: ".78rem", fontWeight: 600, color: accent, px: 1.5, py: 1, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+        {title}
+      </Typography>
+      <Box sx={{ px: 1.5, py: 1 }}>
+        {rows.map(([label, value, color]) => (
+          <Box key={label} sx={{ display: "flex", justifyContent: "space-between", py: 0.4 }}>
+            <Typography sx={{ fontSize: ".72rem", color: "text.secondary" }}>{label}</Typography>
+            <Typography sx={{ fontSize: ".76rem", fontWeight: 500, color: color ?? "text.primary" }}>{value}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Paper>
   );
 }

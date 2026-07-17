@@ -11,6 +11,8 @@ import {
   Tab,
   Badge,
   Typography,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import { AccountCard } from "./Account/AccountCard";
 import { AccessToken } from "@/types";
@@ -51,27 +53,38 @@ interface Grouped {
 type View =
   | "pipeline"
   | "week"
-  | "goal"
+  | "build"
   | "rebalance"
-  | "investigate"
   | "system"
   | "notify"
   | "classic";
 const VIEWS: View[] = [
   "pipeline",
   "week",
-  "goal",
+  "build",
   "rebalance",
-  "investigate",
   "system",
   "notify",
   "classic",
 ];
-// Old tab ids (removed in design v3) still resolve for saved state + deep links.
+// The 5 primary tabs; notify + classic live in the "More" menu.
+const MAIN_TABS: View[] = ["pipeline", "week", "build", "rebalance", "system"];
+// Old tab ids resolve for saved state + deep links. Goal + Investigator (and the
+// pre-v3 chain/ranking) all fold into the unified Build tab.
 const VIEW_ALIASES: Record<string, View> = {
-  chain: "investigate",
-  ranking: "investigate",
+  goal: "build",
+  investigate: "build",
+  chain: "build",
+  ranking: "build",
 };
+type BuildSub = "goal" | "chain";
+// Which Build sub-view a legacy id should open on.
+const subOf = (v: string | null): BuildSub | undefined =>
+  v === "goal"
+    ? "goal"
+    : v === "investigate" || v === "chain" || v === "ranking"
+      ? "chain"
+      : undefined;
 
 const FlowLegend = () => (
   <Box
@@ -133,6 +146,8 @@ export const MainGrid = () => {
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [view, setView] = useState<View>("pipeline");
+  const [buildSub, setBuildSub] = useState<BuildSub>("goal");
+  const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
   const [chainTarget, setChainTarget] = useState<number>(
     CHAIN_TARGETS[0]?.id ?? 0,
   );
@@ -170,11 +185,16 @@ export const MainGrid = () => {
     const fromUrl = resolve(urlView);
     if (fromUrl) {
       setView(fromUrl);
+      const s = subOf(urlView);
+      if (s) setBuildSub(s);
       return;
     }
-    const fromSaved = resolve(localStorage.getItem("mainView"));
+    const savedRaw = localStorage.getItem("mainView");
+    const fromSaved = resolve(savedRaw);
     if (fromSaved) {
       setView(fromSaved);
+      const s = subOf(savedRaw);
+      if (s) setBuildSub(s);
     }
   }, []);
 
@@ -316,7 +336,8 @@ export const MainGrid = () => {
   const enterDemo = () => {
     localStorage.setItem("demoMode", "1");
     setDemoMode(true);
-    changeView("investigate");
+    setBuildSub("chain");
+    changeView("build");
   };
 
   const exitDemo = () => {
@@ -357,7 +378,7 @@ export const MainGrid = () => {
               Demo mode
             </Typography>
             <Typography sx={{ fontSize: ".8rem", color: "text.secondary", flex: 1, minWidth: 260 }}>
-              Chain Explorer, Ranking and System Planner are fully live. Add a
+              Build (chain economics) and System Planner are fully live. Add a
               character to see your own colonies in the planet views.
             </Typography>
             <Button size="small" onClick={exitDemo}>
@@ -369,27 +390,59 @@ export const MainGrid = () => {
         <Box sx={{ px: 1, pt: 1 }}>
           <EmpireSummaryStrip characters={characters} />
         </Box>
-        <Tabs
-          value={view}
-          onChange={(_, v: View) => changeView(v)}
-          sx={{ px: 1, borderBottom: "1px solid rgba(255,255,255,.08)" }}
-        >
-          <Tab value="pipeline" label="Planets" />
-          <Tab value="week" label="Your Week" />
-          <Tab value="goal" label="Goal" />
-          <Tab
-            value="rebalance"
-            label={
-              <Badge badgeContent={lossCount} color="error">
-                <Box sx={{ pr: lossCount ? 1.5 : 0 }}>Rebalance</Box>
-              </Badge>
-            }
-          />
-          <Tab value="investigate" label="Investigator" />
-          <Tab value="system" label="System Planner" />
-          <Tab value="notify" label="Notifications" />
-          <Tab value="classic" label="Classic Table" />
-        </Tabs>
+        <Box sx={{ display: "flex", alignItems: "center", px: 1, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+          <Tabs
+            value={MAIN_TABS.includes(view) ? view : false}
+            onChange={(_, v: View) => changeView(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ flex: 1, minWidth: 0 }}
+          >
+            <Tab value="pipeline" label="Planets" />
+            <Tab value="week" label="Your Week" />
+            <Tab value="build" label="Build" />
+            <Tab
+              value="rebalance"
+              label={
+                <Badge badgeContent={lossCount} color="error">
+                  <Box sx={{ pr: lossCount ? 1.5 : 0 }}>Rebalance</Box>
+                </Badge>
+              }
+            />
+            <Tab value="system" label="System Planner" />
+          </Tabs>
+          <Button
+            onClick={(e) => setMoreAnchor(e.currentTarget)}
+            endIcon={<KeyboardArrowDownIcon />}
+            sx={{
+              flex: "none",
+              textTransform: "none",
+              color: view === "notify" || view === "classic" ? "primary.main" : "text.secondary",
+            }}
+          >
+            More
+          </Button>
+          <Menu anchorEl={moreAnchor} open={Boolean(moreAnchor)} onClose={() => setMoreAnchor(null)}>
+            <MenuItem
+              selected={view === "notify"}
+              onClick={() => {
+                changeView("notify");
+                setMoreAnchor(null);
+              }}
+            >
+              Notifications
+            </MenuItem>
+            <MenuItem
+              selected={view === "classic"}
+              onClick={() => {
+                changeView("classic");
+                setMoreAnchor(null);
+              }}
+            >
+              Classic Table
+            </MenuItem>
+          </Menu>
+        </Box>
         {view === "pipeline" && (
           <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
             <FlowLegend />
@@ -449,24 +502,47 @@ export const MainGrid = () => {
             <WeekManifest characters={characters} />
           </Box>
         )}
-        {view === "goal" && (
+        {view === "build" && (
           <Box sx={{ p: 1 }}>
-            <GoalBuilder
-              onTrace={(id) => {
-                setChainTarget(id);
-                changeView("investigate");
-              }}
-            />
+            <Box sx={{ display: "flex", gap: 1, mb: 1.75, flexWrap: "wrap" }}>
+              {([
+                ["goal", "What to build"],
+                ["chain", "Chain economics"],
+              ] as const).map(([key, label]) => (
+                <Button
+                  key={key}
+                  onClick={() => setBuildSub(key)}
+                  size="small"
+                  variant={buildSub === key ? "contained" : "outlined"}
+                  sx={{
+                    textTransform: "none",
+                    borderRadius: "16px",
+                    fontWeight: 600,
+                    ...(buildSub === key
+                      ? {}
+                      : { color: "text.secondary", borderColor: "rgba(255,255,255,.18)" }),
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Box>
+            {buildSub === "goal" && (
+              <GoalBuilder
+                onTrace={(id) => {
+                  setChainTarget(id);
+                  setBuildSub("chain");
+                }}
+              />
+            )}
+            {buildSub === "chain" && (
+              <Investigator target={chainTarget} onTargetChange={setChainTarget} />
+            )}
           </Box>
         )}
         {view === "rebalance" && (
           <Box sx={{ p: 1 }}>
             <RebalancePanel characters={characters} />
-          </Box>
-        )}
-        {view === "investigate" && (
-          <Box sx={{ p: 1 }}>
-            <Investigator target={chainTarget} onTargetChange={setChainTarget} />
           </Box>
         )}
         {view === "system" && (
