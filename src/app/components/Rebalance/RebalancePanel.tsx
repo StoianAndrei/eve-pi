@@ -108,9 +108,35 @@ export function RebalancePanel({ characters }: { characters: AccessToken[] }) {
 
   if (recs.length === 0) {
     return (
-      <Typography sx={{ color: "text.secondary", py: 4 }}>
-        No planets are running at a loss. Nothing to rebalance. 🎉
-      </Typography>
+      <Box>
+        <Typography sx={{ fontSize: "1.05rem", fontWeight: 500, mb: 0.5 }}>
+          Rebalance — don&apos;t relocate, re-assign
+        </Typography>
+        <Typography sx={{ fontSize: ".85rem", color: "text.secondary", mb: 2.25, maxWidth: 820 }}>
+          Planets producing at a loss show up here with a one-for-one schematic swap that fixes
+          them — no colony moves. Right now none are: every planet is at or above break-even at
+          current prices.
+        </Typography>
+        <Paper
+          elevation={2}
+          sx={{
+            borderRadius: "10px",
+            bgcolor: "#1e1e1e",
+            border: "1px solid rgba(102,187,106,.28)",
+            p: 4,
+            textAlign: "center",
+          }}
+        >
+          <Typography sx={{ fontSize: "2rem", mb: 1 }}>🎉</Typography>
+          <Typography sx={{ fontSize: "1rem", fontWeight: 600, color: "success.main", mb: 0.5 }}>
+            Nothing to rebalance
+          </Typography>
+          <Typography sx={{ fontSize: ".85rem", color: "text.secondary" }}>
+            No planets are running at a loss. Check back after prices move or extractors expire and
+            any new losers will surface here with their fix.
+          </Typography>
+        </Paper>
+      </Box>
     );
   }
 

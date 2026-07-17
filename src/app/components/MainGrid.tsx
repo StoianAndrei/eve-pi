@@ -23,7 +23,7 @@ import { WeekManifest } from "./Manifest/WeekManifest";
 import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
 import { SystemPlanner } from "./System/SystemPlanner";
-import { GoalPlanner } from "./Goal/GoalPlanner";
+import { GoalBuilder } from "./Goal/GoalBuilder";
 import { Investigator } from "./Investigate/Investigator";
 import { NotificationsPanel } from "./Notifications/NotificationsPanel";
 import {
@@ -376,7 +376,7 @@ export const MainGrid = () => {
         >
           <Tab value="pipeline" label="Planets" />
           <Tab value="week" label="Your Week" />
-          <Tab value="goal" label="Goal Planner" />
+          <Tab value="goal" label="Goal" />
           <Tab
             value="rebalance"
             label={
@@ -451,7 +451,12 @@ export const MainGrid = () => {
         )}
         {view === "goal" && (
           <Box sx={{ p: 1 }}>
-            <GoalPlanner />
+            <GoalBuilder
+              onTrace={(id) => {
+                setChainTarget(id);
+                changeView("investigate");
+              }}
+            />
           </Box>
         )}
         {view === "rebalance" && (

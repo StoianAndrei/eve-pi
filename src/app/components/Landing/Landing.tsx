@@ -32,9 +32,10 @@ const STEPS = [
 
 const FEATURES = [
   { color: TIER_COLORS.P2, title: "Pipeline", body: "Extract → import → carry out, per planet" },
+  { color: "#f0a5a0", title: "Goal", body: "Start at the item you want to build" },
   { color: TIER_COLORS.P1, title: "Your Week", body: "One haul manifest, in and out" },
   { color: "#66bb6a", title: "Rebalance", body: "Swap products to end losses" },
-  { color: "#c58af9", title: "Chain Explorer", body: "Build-vs-buy economics, tax aware" },
+  { color: "#c58af9", title: "Investigator", body: "Build-vs-buy economics, tax aware" },
   { color: "#5fb0c9", title: "System Planner", body: "Plan a whole system by planet type" },
   { color: "#5865F2", title: "Notifications", body: "Discord & browser timer alerts" },
 ];
