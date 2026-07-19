@@ -26,6 +26,7 @@ import { RebalancePanel } from "./Rebalance/RebalancePanel";
 import { findSwaps } from "./Rebalance/rebalance";
 import { SystemPlanner } from "./System/SystemPlanner";
 import { GoalBuilder } from "./Goal/GoalBuilder";
+import { BuildPlan } from "./Goal/BuildPlan";
 import { Investigator } from "./Investigate/Investigator";
 import { NotificationsPanel } from "./Notifications/NotificationsPanel";
 import {
@@ -77,7 +78,7 @@ const VIEW_ALIASES: Record<string, View> = {
   chain: "build",
   ranking: "build",
 };
-type BuildSub = "goal" | "chain";
+type BuildSub = "plan" | "goal" | "chain";
 // Which Build sub-view a legacy id should open on.
 const subOf = (v: string | null): BuildSub | undefined =>
   v === "goal"
@@ -146,7 +147,7 @@ export const MainGrid = () => {
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [view, setView] = useState<View>("pipeline");
-  const [buildSub, setBuildSub] = useState<BuildSub>("goal");
+  const [buildSub, setBuildSub] = useState<BuildSub>("plan");
   const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
   const [chainTarget, setChainTarget] = useState<number>(
     CHAIN_TARGETS[0]?.id ?? 0,
@@ -195,7 +196,11 @@ export const MainGrid = () => {
       setView(fromSaved);
       const s = subOf(savedRaw);
       if (s) setBuildSub(s);
+      return;
     }
+    // First visit (no saved tab): land on the guided Build plan — the question.
+    setView("build");
+    setBuildSub("plan");
   }, []);
 
   // R5 — background notification checks while the app is open.
@@ -506,6 +511,7 @@ export const MainGrid = () => {
           <Box sx={{ p: 1 }}>
             <Box sx={{ display: "flex", gap: 1, mb: 1.75, flexWrap: "wrap" }}>
               {([
+                ["plan", "Plan"],
                 ["goal", "What to build"],
                 ["chain", "Chain economics"],
               ] as const).map(([key, label]) => (
@@ -527,6 +533,15 @@ export const MainGrid = () => {
                 </Button>
               ))}
             </Box>
+            {buildSub === "plan" && (
+              <BuildPlan
+                onOpenAnalyzer={() => setBuildSub("goal")}
+                onTrace={(id) => {
+                  setChainTarget(id);
+                  setBuildSub("chain");
+                }}
+              />
+            )}
             {buildSub === "goal" && (
               <GoalBuilder
                 onTrace={(id) => {
