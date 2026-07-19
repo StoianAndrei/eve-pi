@@ -8,6 +8,7 @@ import { EVE_IMAGE_URL } from "@/const";
 import { TIER_COLORS, nameOf } from "@/pi-tiers";
 import { GOALS, goalBuild, iskShort } from "@/pi-goal-build";
 import { planetCombination, PLANET_COLORS } from "@/pi-investigate";
+import { goalAnalysis, ColonyRef } from "@/pi-goal";
 
 /**
  * Guided "Build plan" — the post-login journey. Start at the item, end at a
@@ -70,6 +71,27 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
     () => (primary ? planetCombination(primary.id, piPrices) : null),
     [primary, piPrices],
   );
+
+  // Reconcile against live colonies: what you already make vs the gap, and the
+  // per-planet keep / repurpose / rebuild verdict for a chosen component.
+  const colonies: ColonyRef[] = useMemo(
+    () => characters.flatMap((c) => c.planets.map((planet) => ({ character: c, planet }))),
+    [characters],
+  );
+  const [reconcileTarget, setReconcileTarget] = useState<number>(0);
+  const recTarget = piLines.some((l) => l.id === reconcileTarget)
+    ? reconcileTarget
+    : primary?.id ?? 0;
+  const recPlants = piLines.find((l) => l.id === recTarget)?.planets ?? 1;
+  const analysis = useMemo(
+    () => (recTarget ? goalAnalysis(colonies, recTarget, recPlants, piPrices) : null),
+    [colonies, recTarget, recPlants, piPrices],
+  );
+  const VERDICT = {
+    keep: { label: "KEEP", color: "#66bb6a", bg: "rgba(102,187,106,.14)" },
+    repurpose: { label: "REPURPOSE", color: "#ffa726", bg: "rgba(255,167,38,.14)" },
+    rebuild: { label: "REBUILD", color: "#f44336", bg: "rgba(244,67,54,.16)" },
+  } as const;
 
   return (
     <Box sx={{ maxWidth: 1080, mx: "auto", display: "flex", flexDirection: "column", gap: 1.75 }}>
@@ -235,6 +257,83 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
           <Typography sx={{ fontSize: ".8rem", color: "text.disabled" }}>Pick a build with PI components to see the pairing.</Typography>
         )}
       </StepCard>
+
+      {/* 6 — reconcile with what you already produce */}
+      {charCount > 0 && (
+        <StepCard n="6" title="Reconcile with your colonies — keep, stop, repurpose" sub="you make some of it already; close the rest">
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", mb: 1.5 }}>
+            <Typography sx={{ fontSize: ".72rem", color: "text.secondary" }}>Reconcile for</Typography>
+            <Select
+              size="small"
+              value={recTarget}
+              onChange={(e) => setReconcileTarget(Number(e.target.value))}
+              sx={{ minWidth: 200, bgcolor: "#242424", fontSize: ".82rem" }}
+            >
+              {piLines.map((l) => (
+                <MenuItem key={l.id} value={l.id} sx={{ fontSize: ".82rem" }}>{l.name}</MenuItem>
+              ))}
+            </Select>
+            {analysis && (
+              <>
+                <Chip size="small" label={`${analysis.keepCount} keep`} sx={{ bgcolor: "rgba(102,187,106,.16)", color: "#8bbf8e" }} />
+                <Chip size="small" label={`${analysis.changeCount} to change`} sx={{ bgcolor: "rgba(255,167,38,.16)", color: "#ffa726" }} />
+              </>
+            )}
+          </Box>
+
+          {analysis ? (
+            <>
+              {/* what you make vs need */}
+              <Box sx={{ overflowX: "auto", mb: 1.5 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: "1.6fr .8fr .8fr .8fr", gap: 1, px: 0.5, py: 0.5, minWidth: 420, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+                  {["Component", "Want", "Have", "Gap"].map((h, i) => (
+                    <Typography key={h} sx={{ fontSize: ".62rem", textTransform: "uppercase", letterSpacing: ".04em", color: "text.secondary", textAlign: i === 0 ? "left" : "right" }}>{h}</Typography>
+                  ))}
+                </Box>
+                {analysis.stages.map((s) => (
+                  <Box key={s.id} sx={{ display: "grid", gridTemplateColumns: "1.6fr .8fr .8fr .8fr", gap: 1, px: 0.5, py: 0.6, minWidth: 420, alignItems: "center", borderLeft: `3px solid ${s.tier ? TIER_COLORS[s.tier] : "#7d8a9c"}`, bgcolor: s.need > 0 ? "rgba(255,167,38,.06)" : "transparent" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                      <Image src={ICON(s.id, 24)} alt="" width={22} height={22} unoptimized />
+                      <Typography sx={{ fontSize: ".8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: ".78rem", textAlign: "right", color: "text.secondary" }}>{s.want}</Typography>
+                    <Typography sx={{ fontSize: ".78rem", textAlign: "right" }}>{s.have}</Typography>
+                    <Typography sx={{ fontSize: ".8rem", textAlign: "right", fontWeight: 600, color: s.need > 0 ? "#ffa726" : "#66bb6a" }}>
+                      {s.need > 0 ? `−${s.need}` : "✓"}
+                    </Typography>
+                  </Box>
+                ))}
+                <Typography sx={{ fontSize: ".64rem", color: "text.disabled", mt: 0.5 }}>
+                  Want = factories to make {nameOf(recTarget)} at {recPlants} planet{recPlants === 1 ? "" : "s"}. Have = factories your colonies already run for it.
+                </Typography>
+              </Box>
+
+              {/* per-planet verdicts */}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                {analysis.verdicts.map((v, i) => {
+                  const vd = VERDICT[v.verdict];
+                  return (
+                    <Box key={`${v.characterName}-${v.planetName}-${i}`} sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.25, py: 0.9, bgcolor: "#191919", borderRadius: "8px", borderLeft: `3px solid ${vd.color}`, flexWrap: "wrap" }}>
+                      <Box sx={{ fontSize: ".62rem", fontWeight: 700, color: vd.color, bgcolor: vd.bg, borderRadius: "5px", px: 0.9, py: 0.3, flex: "none" }}>{vd.label}</Box>
+                      <Box sx={{ minWidth: 150 }}>
+                        <Typography sx={{ fontSize: ".82rem" }}>{v.planetName}</Typography>
+                        <Typography sx={{ fontSize: ".66rem", color: "text.disabled" }}>{v.characterName} · {v.planetType}</Typography>
+                      </Box>
+                      <Typography sx={{ fontSize: ".72rem", color: "text.secondary", flex: 1, minWidth: 200 }}>
+                        {v.suggestion ?? (v.makes.length ? `Making ${v.makes.join(", ")} — on plan.` : v.extracts.length ? `Extracting ${v.extracts.join(", ")} — on plan.` : "On plan.")}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </>
+          ) : (
+            <Typography sx={{ fontSize: ".8rem", color: "text.disabled" }}>
+              This component has no live chain to reconcile.
+            </Typography>
+          )}
+        </StepCard>
+      )}
     </Box>
   );
 }
