@@ -24,7 +24,8 @@ import {
   ToggleButtonGroup,
 } from "@mui/material";
 import { SessionContext } from "@/app/context/Context";
-import { EVE_IMAGE_URL } from "@/const";
+import { EVE_IMAGE_URL, PI_SCHEMATICS } from "@/const";
+import { PLANET_P0, PlanetType } from "@/pi-planets";
 import {
   EvePraisalResult,
   fetchAllPrices,
@@ -186,6 +187,10 @@ export function Investigator({
   const [copied, setCopied] = useState<"" | "url" | "plan">("");
   const [rankDesc, setRankDesc] = useState(true);
   const [drawLines, setDrawLines] = useState(true);
+  // Materials grid: select a planet type to see what it can build; hide the
+  // unrelated nodes so the graph doesn't sprawl.
+  const [planetFocus, setPlanetFocus] = useState<PlanetType | null>(null);
+  const [hideUnrelated, setHideUnrelated] = useState(true);
   const [open, setOpen] = useState({ compare: true, grid: true, econ: true, plan: true });
   const hubCache = useRef(new Map<string, EvePraisalResult>());
 
@@ -286,8 +291,29 @@ export function Investigator({
     return () => window.removeEventListener("resize", computeLines);
   }, [computeLines]);
 
-  const nodeState = (id: number): "selected" | "highlighted" | "dimmed" =>
-    id === target ? "selected" : inv.ids.has(id) ? "highlighted" : "dimmed";
+  // What a selected planet type can build: the P0s it extracts + the P1s those
+  // refine into.
+  const planetBuild = useMemo(() => {
+    if (!planetFocus) return null;
+    const p0 = new Set(PLANET_P0[planetFocus] ?? []);
+    const ids = new Set<number>(p0);
+    PI_SCHEMATICS.forEach((s) => {
+      const out = s.outputs[0].type_id;
+      if (tierOf(out) === "P1" && s.inputs.some((i) => p0.has(i.type_id))) ids.add(out);
+    });
+    return ids;
+  }, [planetFocus]);
+
+  const nodeState = (id: number): "selected" | "highlighted" | "dimmed" => {
+    if (planetFocus) return planetBuild?.has(id) ? "highlighted" : "dimmed";
+    return id === target ? "selected" : inv.ids.has(id) ? "highlighted" : "dimmed";
+  };
+
+  // Selecting an item clears any planet focus.
+  const selectItem = (id: number) => {
+    setPlanetFocus(null);
+    onTargetChange(id);
+  };
 
   // -- state URL -------------------------------------------------------------
   const stateUrl = useMemo(() => {
@@ -332,7 +358,7 @@ export function Investigator({
           <Select
             size="small"
             value={target}
-            onChange={(e) => onTargetChange(Number(e.target.value))}
+            onChange={(e) => selectItem(Number(e.target.value))}
             sx={{ ...inputSx, minWidth: 230, fontSize: ".85rem" }}
           >
             {CHAIN_TARGETS.map((t) => (
@@ -475,7 +501,7 @@ export function Investigator({
                 <Box
                   key={b.id}
                   title={b.name}
-                  onClick={() => onTargetChange(b.id)}
+                  onClick={() => selectItem(b.id)}
                   sx={{
                     flex: 1,
                     minWidth: 48,
@@ -534,9 +560,30 @@ export function Investigator({
                 lines
               </Typography>
             </Box>
+            <Box
+              component="span"
+              onClick={(e) => e.stopPropagation()}
+              sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+            >
+              <Switch size="small" checked={hideUnrelated} onChange={(e) => setHideUnrelated(e.target.checked)} />
+              <Typography component="span" sx={{ fontSize: ".7rem", color: "text.secondary" }}>
+                hide unrelated
+              </Typography>
+            </Box>
+            {planetFocus && (
+              <Chip
+                size="small"
+                label={`${cap(planetFocus)} builds ▾ · clear`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPlanetFocus(null);
+                }}
+                sx={{ height: 22, fontSize: ".68rem", bgcolor: `${PLANET_COLORS[planetFocus]}33`, color: PLANET_COLORS[planetFocus] }}
+              />
+            )}
           </Box>
         }
-        hint="the whole graph — click any product to light its ancestry"
+        hint="click a product to light its ancestry, or a planet to see what it can build"
         open={open.grid}
         onToggle={toggle("grid")}
       >
@@ -575,11 +622,13 @@ export function Investigator({
             <Typography sx={{ ...controlLabel, mb: 1 }}>Planets</Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}>
               {PLANET_TYPES.map((t) => {
-                const lit = inv.planetTypes.has(t);
+                const focused = planetFocus === t;
+                const lit = focused || (!planetFocus && inv.planetTypes.has(t));
                 return (
                   <Box
                     key={t}
                     ref={setNodeRef(`planet-${t}`)}
+                    onClick={() => setPlanetFocus(focused ? null : t)}
                     sx={{
                       display: "flex",
                       alignItems: "center",
@@ -587,8 +636,11 @@ export function Investigator({
                       px: 1,
                       py: 0.5,
                       borderRadius: "6px",
-                      bgcolor: lit ? "rgba(255,255,255,.05)" : "transparent",
-                      opacity: lit ? 1 : 0.25,
+                      cursor: "pointer",
+                      border: focused ? `1px solid ${PLANET_COLORS[t]}` : "1px solid transparent",
+                      bgcolor: focused ? `${PLANET_COLORS[t]}22` : lit ? "rgba(255,255,255,.05)" : "transparent",
+                      opacity: lit ? 1 : 0.35,
+                      "&:hover": { opacity: 1, bgcolor: "rgba(255,255,255,.06)" },
                     }}
                   >
                     <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: PLANET_COLORS[t], flex: "none" }} />
@@ -607,11 +659,12 @@ export function Investigator({
                 {col.ids.map((id) => {
                   const state = nodeState(id);
                   const selectable = col.tier !== "P0";
+                  if (hideUnrelated && state === "dimmed") return null;
                   return (
                     <Box
                       key={id}
                       ref={setNodeRef(String(id))}
-                      onClick={selectable ? () => onTargetChange(id) : undefined}
+                      onClick={selectable ? () => selectItem(id) : undefined}
                       sx={{
                         display: "flex",
                         alignItems: "center",
