@@ -9,6 +9,7 @@ import { TIER_COLORS, nameOf } from "@/pi-tiers";
 import { GOALS, goalBuild, iskShort } from "@/pi-goal-build";
 import { planetCombination, PLANET_COLORS } from "@/pi-investigate";
 import { goalAnalysis, ColonyRef } from "@/pi-goal";
+import { componentPlan, ComponentPlan, P1_PER_PLANET } from "@/pi-plan";
 
 /**
  * Guided "Build plan" — the post-login journey. Start at the item, end at a
@@ -19,7 +20,6 @@ import { goalAnalysis, ColonyRef } from "@/pi-goal";
  * Numbers are auto-derived from the chain engine + your live colonies.
  */
 const ICON = (id: number, size = 32) => `${EVE_IMAGE_URL}/types/${id}/icon?size=${size}`;
-const DAYS_PER_MONTH = 30;
 const PLANETS_PER_CHAR = 6; // EVE max with skills
 const BUFFER = 2; // "always plan for double"
 
@@ -48,16 +48,23 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
   const runs = Math.max(1, Math.round(monthly / goal.outPerRun));
   const a = useMemo(() => goalBuild(goalId, runs, piPrices), [goalId, runs, piPrices]);
 
-  // PI lines with planets-needed (parallel factories to finish the month, x2 buffer).
-  const piLines = a.footprint.map((f) => {
-    const row = a.rows.find((r) => r.id === f.id);
-    return {
-      ...f,
-      need: row?.qtyTotal ?? 0,
-      planets: Math.max(1, Math.ceil((f.days * BUFFER) / DAYS_PER_MONTH)),
-    };
-  });
-  const totalPlanets = piLines.reduce((s, l) => s + l.planets, 0);
+  // PI components this build consumes + units/month (×2 to build).
+  const piNeed = a.rows
+    .filter((r) => r.isPi)
+    .map((r) => ({ id: r.id, name: r.name, tier: r.tier, need: r.qtyTotal }));
+
+  // Planet sizing from the chain: each component → its P1 lines, one planet per
+  // ~160 u/h of a P1 (Adam4EVE-style, un-united). ×2 for redundancy.
+  const compPlans = useMemo(
+    () =>
+      a.rows
+        .filter((r) => r.isPi)
+        .map((r) => componentPlan(r.id, piPrices))
+        .filter((c): c is ComponentPlan => c !== null),
+    [a, piPrices],
+  );
+  const baseTotal = compPlans.reduce((s, c) => s + c.planets, 0);
+  const totalPlanets = baseTotal * BUFFER;
 
   // Allocate across characters, flown two at a time.
   const charCount = characters.length;
@@ -66,7 +73,7 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
   const sessions = Math.ceil(charsNeeded / 2);
 
   // Complementary pairing for the heaviest PI product (hub & spoke).
-  const primary = piLines[0];
+  const primary = compPlans[0];
   const combo = useMemo(
     () => (primary ? planetCombination(primary.id, piPrices) : null),
     [primary, piPrices],
@@ -79,10 +86,10 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
     [characters],
   );
   const [reconcileTarget, setReconcileTarget] = useState<number>(0);
-  const recTarget = piLines.some((l) => l.id === reconcileTarget)
+  const recTarget = compPlans.some((c) => c.id === reconcileTarget)
     ? reconcileTarget
     : primary?.id ?? 0;
-  const recPlants = piLines.find((l) => l.id === recTarget)?.planets ?? 1;
+  const recPlants = compPlans.find((c) => c.id === recTarget)?.planets ?? 1;
   const analysis = useMemo(
     () => (recTarget ? goalAnalysis(colonies, recTarget, recPlants, piPrices) : null),
     [colonies, recTarget, recPlants, piPrices],
@@ -158,7 +165,7 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
       {/* 3 */}
       <StepCard n="2" title="The PI those units need — plan for 2×" sub="so factories never starve">
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-          {piLines.map((l) => (
+          {piNeed.map((l) => (
             <Box key={l.id} sx={{ display: "flex", alignItems: "center", gap: 1.25, py: 0.5, borderLeft: `3px solid ${l.tier ? TIER_COLORS[l.tier] : "#7d8a9c"}`, pl: 1.25 }}>
               <Image src={ICON(l.id, 28)} alt="" width={26} height={26} unoptimized />
               <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -173,25 +180,58 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
               </Box>
             </Box>
           ))}
-          {piLines.length === 0 && (
+          {piNeed.length === 0 && (
             <Typography sx={{ fontSize: ".8rem", color: "text.disabled" }}>No PI in this build.</Typography>
           )}
         </Box>
       </StepCard>
 
-      {/* 4 */}
-      <StepCard n="3" title="Planets to produce it" sub={`${BUFFER}× buffer · one factory finishes in ~${DAYS_PER_MONTH} days`}>
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {piLines.map((l) => (
-            <Paper key={l.id} elevation={0} sx={{ bgcolor: "#242424", borderRadius: "8px", px: 1.5, py: 1, minWidth: 120, borderTop: `2px solid ${l.tier ? TIER_COLORS[l.tier] : "#7d8a9c"}` }}>
-              <Typography sx={{ fontSize: ".74rem", color: "text.secondary" }}>{l.name}</Typography>
-              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600 }}>{l.planets} <Typography component="span" sx={{ fontSize: ".7rem", color: "text.disabled" }}>planets</Typography></Typography>
-            </Paper>
-          ))}
+      {/* 3 — planets straight from the chain's P1 requirements (Adam4EVE style) */}
+      <StepCard n="3" title="Planets to produce it" sub={`~${P1_PER_PLANET} u/h per planet · each P1 counted as the chain uses it, not united`}>
+        {compPlans.map((c) => (
+          <Box key={c.id} sx={{ mb: 1.75 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+              <Image src={ICON(c.id, 24)} alt="" width={22} height={22} unoptimized />
+              <Typography sx={{ fontSize: ".85rem", fontWeight: 600 }}>{c.name}</Typography>
+              <Typography sx={{ fontSize: ".7rem", color: "text.disabled" }}>{c.tier}</Typography>
+              <Box sx={{ flex: 1 }} />
+              <Typography sx={{ fontSize: ".82rem", color: "#90caf9", fontWeight: 600 }}>{c.planets} planets</Typography>
+            </Box>
+            <Box sx={{ overflowX: "auto" }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.35, minWidth: 500 }}>
+                {c.p1.map((l) => (
+                  <Box key={l.id} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.35, borderLeft: `3px solid ${TIER_COLORS.P1}`, pl: 1 }}>
+                    <Image src={ICON(l.id, 24)} alt="" width={20} height={20} unoptimized />
+                    <Typography sx={{ fontSize: ".78rem", minWidth: 120 }}>{l.name}</Typography>
+                    <Typography sx={{ fontSize: ".72rem", color: "text.secondary", width: 72, textAlign: "right" }}>{Math.round(l.perHour)} u/h</Typography>
+                    <Typography sx={{ fontSize: ".78rem", fontWeight: 600, width: 78, textAlign: "right" }}>
+                      {l.planets} planet{l.planets === 1 ? "" : "s"}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: 1, flexWrap: "wrap", pl: 1 }}>
+                      <Typography sx={{ fontSize: ".64rem", color: "text.disabled" }}>
+                        {l.p0.map((p) => p.name).join(" + ")}
+                      </Typography>
+                      {Array.from(new Set(l.p0.flatMap((p) => p.types))).map((t) => (
+                        <Box key={t} title={t} sx={{ width: 9, height: 9, borderRadius: "2px", bgcolor: PLANET_COLORS[t] }} />
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          </Box>
+        ))}
+        <Box sx={{ borderTop: "1px solid rgba(255,255,255,.08)", pt: 1.25 }}>
+          <Typography sx={{ fontSize: ".95rem" }}>
+            <b style={{ color: "#90caf9" }}>{baseTotal} planets</b> for one line ·{" "}
+            <b style={{ color: "#f5cf74" }}>{totalPlanets} at {BUFFER}×</b> (plan double)
+            {charCount > 0 && ` — your ${planetTotal} planets = ${Math.round(planetTotal / PLANETS_PER_CHAR)} characters × ${PLANETS_PER_CHAR}`}
+            .
+          </Typography>
+          <Typography sx={{ fontSize: ".7rem", color: "text.disabled", mt: 0.5 }}>
+            Colored squares = planet types that yield each P0 — where to find it (opens up in System Planner).
+          </Typography>
         </Box>
-        <Typography sx={{ fontSize: ".9rem", mt: 1.5 }}>
-          Total ≈ <b style={{ color: "#90caf9" }}>{totalPlanets} planets</b> dedicated to this build (already at 2× buffer).
-        </Typography>
       </StepCard>
 
       {/* 5 */}
@@ -269,8 +309,8 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
               onChange={(e) => setReconcileTarget(Number(e.target.value))}
               sx={{ minWidth: 200, bgcolor: "#242424", fontSize: ".82rem" }}
             >
-              {piLines.map((l) => (
-                <MenuItem key={l.id} value={l.id} sx={{ fontSize: ".82rem" }}>{l.name}</MenuItem>
+              {compPlans.map((c) => (
+                <MenuItem key={c.id} value={c.id} sx={{ fontSize: ".82rem" }}>{c.name}</MenuItem>
               ))}
             </Select>
             {analysis && (
