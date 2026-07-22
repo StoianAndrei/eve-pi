@@ -14,7 +14,13 @@ import { GOALS, goalBuild, iskShort, dur, GoalSummary } from "@/pi-goal-build";
  * and Full-Buy vs Full-Build economics derive from it. PI rows are highlighted
  * and traceable to P0 — your empire supplies them.
  */
-const ICON = (id: number, size = 32) => `${EVE_IMAGE_URL}/types/${id}/icon?size=${size}`;
+// images.evetech.net only serves these icon sizes; anything else 400s. Snap up
+// to the nearest valid size and let width/height control the on-screen px.
+const EVE_ICON_SIZES = [32, 64, 128, 256, 512];
+const ICON = (id: number, size = 32) => {
+  const s = EVE_ICON_SIZES.find((v) => v >= size) ?? 512;
+  return `${EVE_IMAGE_URL}/types/${id}/icon?size=${s}`;
+};
 const m3 = (n: number) => Math.round(n).toLocaleString() + " m³";
 
 export function GoalBuilder({ onTrace }: { onTrace: (id: number) => void }) {

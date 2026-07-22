@@ -19,7 +19,13 @@ import { componentPlan, ComponentPlan, P1_PER_PLANET } from "@/pi-plan";
  *   6. complementary pairs so you only import ~3 things.
  * Numbers are auto-derived from the chain engine + your live colonies.
  */
-const ICON = (id: number, size = 32) => `${EVE_IMAGE_URL}/types/${id}/icon?size=${size}`;
+// images.evetech.net only serves these icon sizes; anything else 400s. Snap up
+// to the nearest valid size and let width/height control the on-screen px.
+const EVE_ICON_SIZES = [32, 64, 128, 256, 512];
+const ICON = (id: number, size = 32) => {
+  const s = EVE_ICON_SIZES.find((v) => v >= size) ?? 512;
+  return `${EVE_IMAGE_URL}/types/${id}/icon?size=${s}`;
+};
 const PLANETS_PER_CHAR = 6; // EVE max with skills
 const BUFFER = 2; // "always plan for double"
 
