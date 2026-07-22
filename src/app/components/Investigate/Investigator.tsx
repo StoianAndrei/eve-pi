@@ -76,6 +76,14 @@ const inputSx = {
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
+/** Divider + label between the merged sub-views of the Chain section. */
+const SubHead = ({ label, sub }: { label: string; sub?: string }) => (
+  <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mt: 2.5, mb: 1.25, pt: 1.75, borderTop: "1px solid rgba(255,255,255,.08)" }}>
+    <Typography sx={{ fontSize: ".9rem", fontWeight: 600 }}>{label}</Typography>
+    {sub && <Typography sx={{ fontSize: ".72rem", color: "text.disabled" }}>{sub}</Typography>}
+  </Box>
+);
+
 interface Line {
   left: number;
   top: number;
@@ -191,7 +199,7 @@ export function Investigator({
   // unrelated nodes so the graph doesn't sprawl.
   const [planetFocus, setPlanetFocus] = useState<PlanetType | null>(null);
   const [hideUnrelated, setHideUnrelated] = useState(true);
-  const [open, setOpen] = useState({ compare: true, grid: true, econ: true, plan: true });
+  const [open, setOpen] = useState({ compare: true, chain: true });
   const hubCache = useRef(new Map<string, EvePraisalResult>());
 
   const toggle = (key: keyof typeof open) => () =>
@@ -259,7 +267,7 @@ export function Investigator({
 
   const computeLines = useCallback(() => {
     const container = containerRef.current;
-    if (!container || !drawLines || !open.grid) {
+    if (!container || !drawLines || !open.chain) {
       setLines([]);
       return;
     }
@@ -283,7 +291,7 @@ export function Investigator({
       });
     });
     setLines(next);
-  }, [inv, drawLines, open.grid]);
+  }, [inv, drawLines, open.chain]);
 
   useLayoutEffect(() => {
     computeLines();
@@ -545,11 +553,11 @@ export function Investigator({
         </Box>
       </Section>
 
-      {/* SECTION 2 — materials grid */}
+      {/* SECTION 2 — materials grid + economics + planet combination (united) */}
       <Section
         title={
           <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1.5 }}>
-            Materials grid
+            Chain, economics &amp; planets
             <Box
               component="span"
               onClick={(e) => e.stopPropagation()}
@@ -583,9 +591,9 @@ export function Investigator({
             )}
           </Box>
         }
-        hint="click a product to light its ancestry, or a planet to see what it can build"
-        open={open.grid}
-        onToggle={toggle("grid")}
+        hint="the graph, the economics and the planet plan — one view"
+        open={open.chain}
+        onToggle={toggle("chain")}
       >
         <Box
           ref={containerRef}
@@ -702,15 +710,8 @@ export function Investigator({
             </Box>
           ))}
         </Box>
-      </Section>
 
-      {/* SECTION 3 — chain economics */}
-      <Section
-        title={`Chain economics — ${nameOf(target)}`}
-        hint="taxes, margin & the full build ladder"
-        open={open.econ}
-        onToggle={toggle("econ")}
-      >
+        <SubHead label={`Chain economics — ${nameOf(target)}`} sub="taxes, margin & the full build ladder" />
         {chain && (
           <>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25, mb: 2 }}>
@@ -797,15 +798,8 @@ export function Investigator({
             </Box>
           </>
         )}
-      </Section>
 
-      {/* SECTION 4 — optimal planet combination */}
-      <Section
-        title="Optimal planet combination"
-        hint={`hub & spoke — which planets to plant for ${nameOf(target)}`}
-        open={open.plan}
-        onToggle={toggle("plan")}
-      >
+        <SubHead label="Optimal planet combination" sub={`hub & spoke — which planets to plant for ${nameOf(target)}`} />
         {combo && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "flex-start" }}>
             <Box sx={{ flex: 1, minWidth: 300, bgcolor: "#1e1e1e", border: "1px solid rgba(255,255,255,.08)", borderRadius: "10px", overflow: "hidden" }}>
