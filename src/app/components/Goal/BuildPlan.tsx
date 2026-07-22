@@ -9,7 +9,8 @@ import { TIER_COLORS, nameOf } from "@/pi-tiers";
 import { GOALS, goalBuild, iskShort } from "@/pi-goal-build";
 import { planetCombination, PLANET_COLORS } from "@/pi-investigate";
 import { goalAnalysis, ColonyRef } from "@/pi-goal";
-import { componentPlan, ComponentPlan, P1_PER_PLANET } from "@/pi-plan";
+import { componentTree, ComponentTree, P1_PER_PLANET } from "@/pi-plan";
+import { PlanetType } from "@/pi-planets";
 
 /**
  * Guided "Build plan" — the post-login journey. Start at the item, end at a
@@ -28,6 +29,7 @@ const ICON = (id: number, size = 32) => {
 };
 const PLANETS_PER_CHAR = 6; // EVE max with skills
 const BUFFER = 2; // "always plan for double"
+const BOX_W = 128; // P0 and P1 boxes share one width
 
 function StepCard({ n, title, sub, children }: { n: string; title: string; sub?: string; children: ReactNode }) {
   return (
@@ -65,8 +67,8 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
     () =>
       a.rows
         .filter((r) => r.isPi)
-        .map((r) => componentPlan(r.id, piPrices))
-        .filter((c): c is ComponentPlan => c !== null),
+        .map((r) => componentTree(r.id, piPrices))
+        .filter((c): c is ComponentTree => c !== null),
     [a, piPrices],
   );
   const baseTotal = compPlans.reduce((s, c) => s + c.planets, 0);
@@ -192,42 +194,45 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
         </Box>
       </StepCard>
 
-      {/* 3 — planets straight from the chain's P1 requirements (Adam4EVE style) */}
-      <StepCard n="3" title="Planets to produce it" sub={`~${P1_PER_PLANET} u/h per planet · each P1 counted as the chain uses it, not united`}>
+      {/* 3 — the chain grouped as it's used: each P2 contains its 2 planets */}
+      <StepCard n="3" title="Planets to produce it" sub={`~${P1_PER_PLANET} u/h = 1 planet · each P2 is made by 2 planets — one refined on-site, one imported`}>
         {compPlans.map((c) => (
           <Box key={c.id} sx={{ mb: 1.75 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
               <Image src={ICON(c.id, 24)} alt="" width={22} height={22} unoptimized />
               <Typography sx={{ fontSize: ".85rem", fontWeight: 600 }}>{c.name}</Typography>
               <Typography sx={{ fontSize: ".7rem", color: "text.disabled" }}>{c.tier}</Typography>
               <Box sx={{ flex: 1 }} />
               <Typography sx={{ fontSize: ".82rem", color: "#90caf9", fontWeight: 600 }}>{c.planets} planets</Typography>
             </Box>
-            <Box sx={{ overflowX: "auto" }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.35, minWidth: 500 }}>
-                {c.p1.map((l) => (
-                  <Box key={l.id} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.35, borderLeft: `3px solid ${TIER_COLORS.P1}`, pl: 1 }}>
-                    <Image src={ICON(l.id, 24)} alt="" width={20} height={20} unoptimized />
-                    <Typography sx={{ fontSize: ".78rem", minWidth: 120 }}>{l.name}</Typography>
-                    <Typography sx={{ fontSize: ".72rem", color: "text.secondary", width: 72, textAlign: "right" }}>{Math.round(l.perHour)} u/h</Typography>
-                    <Typography sx={{ fontSize: ".78rem", fontWeight: 600, width: 78, textAlign: "right" }}>
-                      {l.planets} planet{l.planets === 1 ? "" : "s"}
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: 1, flexWrap: "wrap", pl: 1 }}>
-                      <Typography sx={{ fontSize: ".64rem", color: "text.disabled" }}>
-                        {l.p0.map((p) => p.name).join(" + ")}
-                      </Typography>
-                      {Array.from(new Set(l.p0.flatMap((p) => p.types))).map((t) => (
-                        <Box key={t} title={t} sx={{ width: 9, height: 9, borderRadius: "2px", bgcolor: PLANET_COLORS[t] }} />
-                      ))}
-                    </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 1 }}>
+              {c.p2.map((g) => (
+                <Box key={g.id} sx={{ bgcolor: "#191919", border: `1px solid ${TIER_COLORS.P2}55`, borderRadius: "10px", p: 1 }}>
+                  {/* P2 header */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75, px: 0.5 }}>
+                    <Image src={ICON(g.id, 24)} alt="" width={20} height={20} unoptimized />
+                    <Typography sx={{ fontSize: ".8rem", fontWeight: 600, color: TIER_COLORS.P2 }}>{g.name}</Typography>
+                    <Box sx={{ flex: 1 }} />
+                    <Typography sx={{ fontSize: ".66rem", color: "text.disabled" }}>{g.planets} planets</Typography>
                   </Box>
-                ))}
-              </Box>
+                  {/* the 2 planets that feed it — each on one row */}
+                  {g.inputs.map((p1) => (
+                    <Box key={p1.id} sx={{ display: "flex", alignItems: "center", gap: 0.75, py: 0.4 }}>
+                      {p1.p0 ? <PBox id={p1.p0.id} name={p1.p0.name} tier="P0" types={p1.p0.types} /> : <Box sx={{ width: BOX_W }} />}
+                      <Typography sx={{ color: "rgba(255,255,255,.3)", fontSize: ".9rem" }}>→</Typography>
+                      <PBox id={p1.id} name={p1.name} tier="P1" />
+                      <Box sx={{ flex: 1 }} />
+                      <Box sx={{ fontSize: ".58rem", fontWeight: 700, color: p1.role === "produce" ? "#66bb6a" : "#7cb6f2", bgcolor: p1.role === "produce" ? "rgba(102,187,106,.14)" : "rgba(124,182,242,.14)", borderRadius: "4px", px: 0.6, py: 0.2, flex: "none" }}>
+                        {p1.role === "produce" ? "MAKE" : "IMPORT"}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              ))}
             </Box>
           </Box>
         ))}
-        <Box sx={{ borderTop: "1px solid rgba(255,255,255,.08)", pt: 1.25 }}>
+        <Box sx={{ borderTop: "1px solid rgba(255,255,255,.08)", pt: 1.25, mt: 0.5 }}>
           <Typography sx={{ fontSize: ".95rem" }}>
             <b style={{ color: "#90caf9" }}>{baseTotal} planets</b> for one line ·{" "}
             <b style={{ color: "#f5cf74" }}>{totalPlanets} at {BUFFER}×</b> (plan double)
@@ -235,7 +240,8 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
             .
           </Typography>
           <Typography sx={{ fontSize: ".7rem", color: "text.disabled", mt: 0.5 }}>
-            Colored squares = planet types that yield each P0 — where to find it (opens up in System Planner).
+            Each row is one planet: extract the P0 → refine the P1. The two rows in a box are the
+            complementary pair for that P2 — colored squares show which planet types yield the P0.
           </Typography>
         </Box>
       </StepCard>
@@ -361,10 +367,10 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
                   return (
                     <Box key={`${v.characterName}-${v.planetName}-${i}`} sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.25, py: 0.9, bgcolor: "#191919", borderRadius: "8px", borderLeft: `3px solid ${vd.color}`, flexWrap: "wrap" }}>
                       <Box sx={{ fontSize: ".62rem", fontWeight: 700, color: vd.color, bgcolor: vd.bg, borderRadius: "5px", px: 0.9, py: 0.3, flex: "none" }}>{vd.label}</Box>
-                      <Box sx={{ minWidth: 150 }}>
-                        <Typography sx={{ fontSize: ".82rem" }}>{v.planetName}</Typography>
-                        <Typography sx={{ fontSize: ".66rem", color: "text.disabled" }}>{v.characterName} · {v.planetType}</Typography>
-                      </Box>
+                      <Typography sx={{ fontSize: ".8rem", minWidth: 200, flex: "none" }}>
+                        {v.planetName}
+                        <Typography component="span" sx={{ fontSize: ".68rem", color: "text.disabled" }}> · {v.characterName} · {v.planetType}</Typography>
+                      </Typography>
                       <Typography sx={{ fontSize: ".72rem", color: "text.secondary", flex: 1, minWidth: 200 }}>
                         {v.suggestion ?? (v.makes.length ? `Making ${v.makes.join(", ")} — on plan.` : v.extracts.length ? `Extracting ${v.extracts.join(", ")} — on plan.` : "On plan.")}
                       </Typography>
@@ -386,6 +392,23 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
 
 const Arrow = () => (
   <Typography sx={{ color: "rgba(255,255,255,.3)", fontSize: "1.3rem", fontWeight: 700 }}>→</Typography>
+);
+
+/** Equal-size P0 / P1 chip used in the chain tree. */
+const PBox = ({ id, name, tier, types }: { id: number; name: string; tier: "P0" | "P1"; types?: PlanetType[] }) => (
+  <Box sx={{ width: BOX_W, flex: "none", display: "flex", alignItems: "center", gap: 0.6, bgcolor: "#242424", border: `1px solid ${TIER_COLORS[tier]}55`, borderLeft: `3px solid ${TIER_COLORS[tier]}`, borderRadius: "6px", px: 0.75, py: 0.5 }}>
+    <Image src={ICON(id, 24)} alt="" width={18} height={18} unoptimized />
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Typography sx={{ fontSize: ".68rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</Typography>
+      {types && types.length > 0 && (
+        <Box sx={{ display: "flex", gap: 0.3, mt: 0.2 }}>
+          {types.slice(0, 6).map((t) => (
+            <Box key={t} title={t} sx={{ width: 7, height: 7, borderRadius: "1px", bgcolor: PLANET_COLORS[t] }} />
+          ))}
+        </Box>
+      )}
+    </Box>
+  </Box>
 );
 
 const Metric = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) => (

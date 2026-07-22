@@ -70,3 +70,80 @@ export const componentPlan = (
     planets: p1.reduce((s, l) => s + l.planets, 0),
   };
 };
+
+// --- P2-grouped tree (un-united, "as the chain uses it") -------------------
+// Each P2 is a container fed by its two P1 planets: one refined on-site, one
+// imported from the paired planet. Same shape the community reads on Adam4EVE.
+
+export interface TreeP1 {
+  id: number;
+  name: string;
+  perHour: number;
+  planets: number;
+  p0: { id: number; name: string; types: PlanetType[] } | null;
+  role: "produce" | "import";
+}
+
+export interface TreeP2 {
+  id: number;
+  name: string;
+  perHour: number;
+  planets: number;
+  inputs: TreeP1[];
+}
+
+export interface ComponentTree {
+  id: number;
+  name: string;
+  tier: Tier | undefined;
+  p2: TreeP2[];
+  planets: number;
+}
+
+export const componentTree = (
+  componentId: number,
+  piPrices: EvePraisalResult | undefined,
+  perPlanet: number = P1_PER_PLANET,
+): ComponentTree | null => {
+  const chain = buildChain(componentId, piPrices);
+  if (!chain) return null;
+
+  const p2: TreeP2[] = chain.nodes
+    .filter((n) => n.tier === "P2")
+    .map((n) => {
+      const cyclesPerHour = n.outQty > 0 ? n.perHour / n.outQty : 0;
+      const inputs: TreeP1[] = n.inputs
+        .filter((i) => tierOf(i.id) === "P1")
+        .map((i, idx) => {
+          const perHour = i.qty * cyclesPerHour;
+          const sch = BY_OUTPUT.get(i.id);
+          const p0src = (sch?.inputs ?? []).find((x) => tierOf(x.type_id) === "P0");
+          return {
+            id: i.id,
+            name: i.name,
+            perHour,
+            planets: Math.max(1, Math.ceil(perHour / perPlanet)),
+            p0: p0src
+              ? { id: p0src.type_id, name: nameOf(p0src.type_id), types: planetTypesForP0(p0src.type_id) }
+              : null,
+            role: idx === 0 ? "produce" : "import",
+          };
+        });
+      return {
+        id: n.id,
+        name: n.name,
+        perHour: n.perHour,
+        planets: inputs.reduce((s, x) => s + x.planets, 0),
+        inputs,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    id: componentId,
+    name: nameOf(componentId),
+    tier: tierOf(componentId),
+    p2,
+    planets: p2.reduce((s, g) => s + g.planets, 0),
+  };
+};
