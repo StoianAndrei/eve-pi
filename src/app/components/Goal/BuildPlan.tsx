@@ -11,6 +11,8 @@ import { planetCombination, PLANET_COLORS } from "@/pi-investigate";
 import { goalAnalysis, ColonyRef } from "@/pi-goal";
 import { componentTree, ComponentTree, P1_PER_PLANET } from "@/pi-plan";
 import { PlanetType } from "@/pi-planets";
+import { buildChain } from "@/pi-chain";
+import { ProductionMatrix } from "./ProductionMatrix";
 
 /**
  * Guided "Build plan" — the post-login journey. Start at the item, end at a
@@ -82,6 +84,17 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
 
   // Complementary pairing for the heaviest PI product (hub & spoke).
   const primary = compPlans[0];
+
+  // Production board: highlight every planet that feeds the active target.
+  // Clicking a factory cell re-targets; goal change resets to the primary.
+  const [boardTarget, setBoardTarget] = useState(0);
+  const bt = boardTarget || primary?.id || 0;
+  const requiredIds = useMemo(() => {
+    const s = new Set<number>();
+    if (!bt) return s;
+    buildChain(bt, piPrices)?.nodes.forEach((n) => s.add(n.id));
+    return s;
+  }, [bt, piPrices]);
   const combo = useMemo(
     () => (primary ? planetCombination(primary.id, piPrices) : null),
     [primary, piPrices],
@@ -132,6 +145,7 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setGoalId(id);
+                setBoardTarget(0);
                 const g = GOALS.find((x) => x.id === id);
                 if (g) setMonthly(g.runsDefault * g.outPerRun);
               }}
@@ -169,6 +183,30 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
           </Button>
         </Box>
       </StepCard>
+
+      {/* Production board — the decision panel */}
+      {charCount > 0 && (
+        <Paper elevation={0} sx={{ bgcolor: "#1e1e1e", border: "1px solid rgba(144,202,249,.25)", borderRadius: "12px", p: 2.25 }}>
+          <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
+            <Typography sx={{ fontWeight: 600, fontSize: "1rem" }}>Production board</Typography>
+            <Typography sx={{ fontSize: ".76rem", color: "text.disabled" }}>
+              characters × planets · green feeds <b style={{ color: "#8bbf8e" }}>{nameOf(bt)}</b>, red is off-plan
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, fontSize: ".68rem" }}>
+              <Legend color="#7cb6f2" label="extract" />
+              <Legend color="#8a8f98" label="import" />
+              <Legend color="#66bb6a" label="on-plan" />
+              <Legend color="#f44336" label="repurpose" />
+            </Box>
+          </Box>
+          <ProductionMatrix characters={characters} requiredIds={requiredIds} onSelect={setBoardTarget} />
+          <Typography sx={{ fontSize: ".7rem", color: "text.disabled", mt: 1 }}>
+            Left half of each planet = what it extracts (blue) &amp; imports (grey); right half = what it
+            exports. Click a factory planet to re-light the board around it.
+          </Typography>
+        </Paper>
+      )}
 
       {/* 3 */}
       <StepCard n="2" title="The PI those units need — plan for 2×" sub="so factories never starve">
@@ -392,6 +430,13 @@ export function BuildPlan({ onOpenAnalyzer, onTrace }: { onOpenAnalyzer: (id: nu
 
 const Arrow = () => (
   <Typography sx={{ color: "rgba(255,255,255,.3)", fontSize: "1.3rem", fontWeight: 700 }}>→</Typography>
+);
+
+const Legend = ({ color, label }: { color: string; label: string }) => (
+  <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+    <Box sx={{ width: 9, height: 9, borderRadius: "2px", bgcolor: color }} />
+    <Typography sx={{ fontSize: ".66rem", color: "text.secondary" }}>{label}</Typography>
+  </Box>
 );
 
 /** Equal-size P0 / P1 chip used in the chain tree. */
