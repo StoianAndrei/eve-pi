@@ -34,6 +34,8 @@ import {
 } from "@/eve-praisal";
 import { TIER_COLORS, nameOf, tierOf } from "@/pi-tiers";
 import {
+  chainFlow,
+  FlowNode,
   buildChain,
   buildPlanText,
   CHAIN_TARGETS,
@@ -83,6 +85,49 @@ const SubHead = ({ label, sub }: { label: string; sub?: string }) => (
     {sub && <Typography sx={{ fontSize: ".72rem", color: "text.disabled" }}>{sub}</Typography>}
   </Box>
 );
+
+const leafCount = (n: FlowNode): number =>
+  n.children.length === 0 ? 1 : n.children.reduce((s, c) => s + leafCount(c), 0);
+
+/**
+ * Proportional flow node (icicle): each card fills its allocated width; its
+ * children split that width by units/hr, so a parent visually spans exactly
+ * the inputs that feed it — down to the P0 leaves.
+ */
+function FlowTree({ node }: { node: FlowNode }) {
+  const color = TIER_COLORS[node.tier ?? "P0"];
+  const ph = node.perHour;
+  const phText = ph >= 100 ? Math.round(ph).toLocaleString() : ph.toFixed(ph < 10 ? 1 : 0);
+  return (
+    <Box sx={{ flex: `${Math.max(ph, 0.001)} 1 0`, minWidth: 46, display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box sx={{ bgcolor: "#1e1e1e", border: `1px solid ${color}55`, borderTop: `3px solid ${color}`, borderRadius: "6px", px: 0.6, py: 0.5, minWidth: 0, overflow: "hidden" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Image src={ICON(node.id)} alt="" width={18} height={18} unoptimized />
+          <Typography sx={{ fontSize: ".66rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {node.name}
+          </Typography>
+        </Box>
+        <Typography sx={{ fontSize: ".58rem", color: "text.disabled", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {phText}/h{node.tier === "P0" ? " · extract" : ` · ${node.factories}×`}
+        </Typography>
+        {node.tier === "P0" && (
+          <Box sx={{ display: "flex", gap: 0.3, mt: 0.3 }}>
+            {planetTypesForP0(node.id).map((t) => (
+              <Box key={t} title={t} sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: PLANET_COLORS[t] }} />
+            ))}
+          </Box>
+        )}
+      </Box>
+      {node.children.length > 0 && (
+        <Box sx={{ display: "flex", gap: 0.5, alignItems: "stretch" }}>
+          {node.children.map((c, i) => (
+            <FlowTree key={`${c.id}-${i}`} node={c} />
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 interface Line {
   left: number;
@@ -249,6 +294,10 @@ export function Investigator({
   }, [activePrices, customsPct, marketPct, sellSide, buySide, rankDesc]);
   const maxNet = Math.max(...bars.map((b) => Math.abs(b.net)), 1);
 
+  const flow = useMemo(
+    () => chainFlow(target, activePrices, { buySide }),
+    [target, activePrices, buySide],
+  );
   const inv = useMemo(() => investigate(target), [target]);
   const combo = useMemo(
     () => planetCombination(target, activePrices),
@@ -731,70 +780,13 @@ export function Investigator({
                 color={chain.margin >= 0 ? "success.main" : "error.main"}
               />
             </Box>
-            <Box sx={{ display: "flex", gap: 1.5, overflowX: "auto", pb: 1 }}>
-              {chain.byTier.map((g) => (
-                <Box key={g.tier} sx={{ flex: "none", minWidth: 220, maxWidth: 260 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: "2px", bgcolor: TIER_COLORS[g.tier] }} />
-                    <Typography sx={{ fontSize: ".78rem", fontWeight: 600, color: TIER_COLORS[g.tier] }}>
-                      {g.tier}
-                    </Typography>
-                    <Typography sx={{ fontSize: ".7rem", color: "text.disabled" }}>
-                      {g.nodes.length} node{g.nodes.length > 1 ? "s" : ""}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {g.nodes.map((n) => (
-                      <Box
-                        key={n.id}
-                        sx={{
-                          bgcolor: "#1e1e1e",
-                          border: "1px solid rgba(255,255,255,.08)",
-                          borderLeft: `3px solid ${TIER_COLORS[g.tier]}`,
-                          borderRadius: "7px",
-                          px: 1.25,
-                          py: 1,
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Image src={ICON(n.id)} alt="" width={26} height={26} unoptimized />
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ fontSize: ".8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {n.name}
-                            </Typography>
-                            <Typography sx={{ fontSize: ".64rem", color: "text.disabled" }}>
-                              {n.facility}
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.75 }}>
-                          <Typography sx={{ fontSize: ".68rem", color: "text.secondary" }}>
-                            {n.perHour.toFixed(0)} u/h
-                          </Typography>
-                          <Typography sx={{ fontSize: ".68rem", color: "text.secondary" }}>
-                            {n.tier === "P0" ? "extract" : `${n.factories}× fac`}
-                          </Typography>
-                          <Typography sx={{ fontSize: ".68rem", color: "#8bbf8e" }}>
-                            {fmtIsk(n.unitPrice)} ISK
-                          </Typography>
-                        </Box>
-                        {n.tier === "P0" && (
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.6 }}>
-                            <Typography sx={{ fontSize: ".62rem", color: "text.disabled" }}>from</Typography>
-                            {planetTypesForP0(n.id).map((t) => (
-                              <Box
-                                key={t}
-                                title={t}
-                                sx={{ width: 9, height: 9, borderRadius: "50%", bgcolor: PLANET_COLORS[t] }}
-                              />
-                            ))}
-                          </Box>
-                        )}
-                      </Box>
-                    ))}
-                  </Box>
+            {/* Proportional flow — each card spans its inputs, sized by u/h */}
+            <Box sx={{ width: "100%", overflowX: "auto", pb: 1 }}>
+              {flow && (
+                <Box sx={{ display: "flex", minWidth: Math.max(680, leafCount(flow) * 58) }}>
+                  <FlowTree node={flow} />
                 </Box>
-              ))}
+              )}
             </Box>
           </>
         )}

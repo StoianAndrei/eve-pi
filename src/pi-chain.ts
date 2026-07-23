@@ -179,6 +179,53 @@ export const buildChain = (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Proportional flow tree (un-united): the target at the root, each input a
+// child sized by its units/hr, recursively down to P0. Renders as an icicle —
+// a parent card spans exactly the combined width of its children.
+// ---------------------------------------------------------------------------
+
+export interface FlowNode {
+  id: number;
+  name: string;
+  tier: Tier | undefined;
+  facility: string;
+  perHour: number;
+  factories: number;
+  unitPrice: number;
+  inQty: number; // units consumed per one unit of the parent (recipe ratio)
+  children: FlowNode[];
+}
+
+export const chainFlow = (
+  targetId: number,
+  piPrices: EvePraisalResult | undefined,
+  { buySide = "sell" }: Pick<ChainOptions, "buySide"> = {},
+): FlowNode | null => {
+  const root = BY_OUTPUT.get(targetId);
+  if (!root) return null;
+
+  const build = (id: number, perHour: number, inQty: number): FlowNode => {
+    const s = BY_OUTPUT.get(id);
+    const outQty = s?.outputs[0].quantity ?? 0;
+    const cyclesPerHour = s && outQty > 0 ? perHour / outQty : 0;
+    return {
+      id,
+      name: nameOf(id),
+      tier: tierOf(id),
+      facility: facilityOf(id),
+      perHour,
+      factories: s ? Math.max(1, Math.round(perHour / (outQty * (3600 / s.cycle_time)))) : 0,
+      unitPrice: unitPrice(piPrices, id, buySide),
+      inQty,
+      children: s ? s.inputs.map((i) => build(i.type_id, i.quantity * cyclesPerHour, i.quantity)) : [],
+    };
+  };
+
+  const targetPerHour = root.outputs[0].quantity * (3600 / root.cycle_time);
+  return build(targetId, targetPerHour, 1);
+};
+
 export interface ChainTarget {
   id: number;
   name: string;
