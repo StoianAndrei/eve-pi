@@ -47,6 +47,7 @@ import {
 import {
   COLUMNS,
   investigate,
+  descendantsOf,
   planetCombination,
   PLANET_COLORS,
   PLANET_TYPES,
@@ -300,6 +301,8 @@ export function Investigator({
     [target, activePrices, buySide],
   );
   const inv = useMemo(() => investigate(target), [target]);
+  // Forward direction: everything the target feeds into (P2 → P3 → P4).
+  const desc = useMemo(() => descendantsOf(target), [target]);
   const combo = useMemo(
     () => planetCombination(target, activePrices),
     [target, activePrices],
@@ -364,7 +367,9 @@ export function Investigator({
 
   const nodeState = (id: number): "selected" | "highlighted" | "dimmed" => {
     if (planetFocus) return planetBuild?.has(id) ? "highlighted" : "dimmed";
-    return id === target ? "selected" : inv.ids.has(id) ? "highlighted" : "dimmed";
+    if (id === target) return "selected";
+    // Light both ways: ancestry (inputs) and descendants (what it feeds).
+    return inv.ids.has(id) || desc.has(id) ? "highlighted" : "dimmed";
   };
 
   // Selecting an item clears any planet focus.

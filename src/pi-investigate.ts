@@ -43,6 +43,31 @@ export const PLANET_COLORS: Record<PlanetType, string> = {
 export const planetTypesForP0 = (p0: number): PlanetType[] =>
   PLANET_TYPES.filter((t) => PLANET_P0[t].includes(p0));
 
+// Reverse recipe map: input type_id -> the outputs that consume it.
+const CONSUMERS = new Map<number, number[]>();
+PI_SCHEMATICS.forEach((s) => {
+  const out = s.outputs[0].type_id;
+  s.inputs.forEach((i) => {
+    const arr = CONSUMERS.get(i.type_id) ?? [];
+    arr.push(out);
+    CONSUMERS.set(i.type_id, arr);
+  });
+});
+
+/** Everything that (transitively) consumes `id` — its forward descendants. */
+export const descendantsOf = (id: number): Set<number> => {
+  const out = new Set<number>();
+  const walk = (x: number) =>
+    (CONSUMERS.get(x) ?? []).forEach((o) => {
+      if (!out.has(o)) {
+        out.add(o);
+        walk(o);
+      }
+    });
+  walk(id);
+  return out;
+};
+
 const byName = (a: number, b: number) => nameOf(a).localeCompare(nameOf(b));
 
 const ALL_P0 = Array.from(new Set(Object.values(PLANET_P0).flat())).sort(byName);
