@@ -714,7 +714,7 @@ export function Investigator({
             </Box>
           </Box>
           {COLUMNS.map((col) => (
-            <Box key={col.tier} sx={{ flex: "none", minWidth: 178, zIndex: 1 }}>
+            <Box key={col.tier} sx={{ flex: "1 1 0", minWidth: 150, zIndex: 1 }}>
               <Typography sx={{ ...controlLabel, color: TIER_COLORS[col.tier], fontWeight: 600, mb: 1 }}>
                 {col.tier} materials
               </Typography>
