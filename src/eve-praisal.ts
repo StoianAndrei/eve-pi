@@ -137,7 +137,7 @@ const getFuzzworkPraisal = async (
       `${FUZZWORK_AGGREGATES_URL}?region=${regionId}&types=${typeIds.join(",")}`,
       {
         headers: {
-          "User-Agent": "EVE-PI https://github.com/calli-eve/eve-pi",
+          "User-Agent": "EVE-PI https://github.com/StoianAndrei/eve-pi",
         },
       }
     );
@@ -202,7 +202,7 @@ export const getPraisal = async (
       method: "POST",
       body: JSON.stringify(praisalRequest),
       headers: {
-        "User-Agent": "EVE-PI https://github.com/calli-eve/eve-pi",
+        "User-Agent": "EVE-PI https://github.com/StoianAndrei/eve-pi",
       },
     })
       .then((res) => (res.ok ? res.json() : undefined))

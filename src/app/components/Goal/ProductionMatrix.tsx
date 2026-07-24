@@ -6,26 +6,25 @@ import { AccessToken, PlanetWithInfo } from "@/types";
 import { EVE_IMAGE_URL } from "@/const";
 import { tierOf, nameOf, TIER_COLORS } from "@/pi-tiers";
 import { PlanetType } from "@/pi-planets";
-import { PLANET_COLORS } from "@/pi-investigate";
 import { planetFlows } from "@/planet-flows";
+import { PlanetBadge } from "../common/PlanetBadge";
 
 /**
  * Production matrix (cross-tab) — the decision board. Planet TYPES down the
  * left, CHARACTERS across the top; each intersection is that character's
- * planet(s) of that type. Every planet cell is split in half: left = what it
- * extracts (blue) + imports (grey), right = what it exports. Cells whose output
- * feeds the selected build glow green; off-plan planets glow red.
+ * planet(s) of that type. Every planet cell is two stacked rows: IN (what it
+ * extracts — blue — and imports — grey) on top, OUT (what it exports /
+ * produces) below. Cells whose output feeds the selected build glow green;
+ * off-plan planets glow red.
  */
 const SIZES = [32, 64, 128, 256, 512];
 const ICON = (id: number, size = 24) => {
   const s = SIZES.find((v) => v >= size) ?? 512;
   return `${EVE_IMAGE_URL}/types/${id}/icon?size=${s}`;
 };
-const initials = (name: string) =>
-  (name.match(/[A-Z0-9]/g)?.join("").slice(0, 3) ?? name.slice(0, 2)).toUpperCase();
+const PORTRAIT = (characterId: number) => `${EVE_IMAGE_URL}/characters/${characterId}/portrait?size=64`;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-// fixed display order
 const TYPE_ORDER: PlanetType[] = ["temperate", "barren", "oceanic", "ice", "gas", "lava", "storm", "plasma"];
 
 function IconDot({ id, ring }: { id: number; ring: string }) {
@@ -57,18 +56,16 @@ function PlanetCell({
     <Box
       onClick={clickable && onSelect ? () => onSelect(exp!.typeId) : undefined}
       sx={{
-        display: "flex",
         border: `1px solid ${bc}`,
         borderRadius: "6px",
         overflow: "hidden",
         bgcolor: aligned === false ? "rgba(244,67,54,.06)" : aligned ? "rgba(102,187,106,.06)" : "#1e1e1e",
         cursor: clickable && onSelect ? "pointer" : "default",
-        minHeight: 52,
       }}
     >
-      {/* left: extract (blue) + import (grey) */}
-      <Box sx={{ flex: 1, p: 0.5, borderRight: "1px solid rgba(255,255,255,.06)", minWidth: 0 }}>
-        <Typography sx={{ fontSize: ".5rem", textTransform: "uppercase", color: "#7cb6f2", mb: 0.3 }}>in</Typography>
+      {/* IN row */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 0.6, py: 0.45, borderBottom: "1px solid rgba(255,255,255,.06)", bgcolor: "rgba(124,182,242,.05)" }}>
+        <Typography sx={{ fontSize: ".5rem", fontWeight: 700, color: "#7cb6f2", width: 20, flex: "none" }}>IN</Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.3 }}>
           {f.extracted.map((l) => <IconDot key={`e${l.typeId}`} id={l.typeId} ring="#7cb6f2" />)}
           {f.importedIn.map((l) => <IconDot key={`i${l.typeId}`} id={l.typeId} ring="#8a8f98" />)}
@@ -77,13 +74,15 @@ function PlanetCell({
           )}
         </Box>
       </Box>
-      {/* right: export */}
-      <Box sx={{ flex: 1, p: 0.5, minWidth: 0, bgcolor: exp ? `${TIER_COLORS[expTier ?? "P2"]}12` : "transparent" }}>
-        <Typography sx={{ fontSize: ".5rem", textTransform: "uppercase", color: exp ? TIER_COLORS[expTier ?? "P2"] : "text.disabled", mb: 0.3 }}>out</Typography>
+      {/* OUT row */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 0.6, py: 0.45, bgcolor: exp ? `${TIER_COLORS[expTier ?? "P2"]}12` : "transparent" }}>
+        <Typography sx={{ fontSize: ".5rem", fontWeight: 700, color: exp ? TIER_COLORS[expTier ?? "P2"] : "text.disabled", width: 20, flex: "none" }}>OUT</Typography>
         {exp ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, minWidth: 0 }}>
             <IconDot id={exp.typeId} ring={TIER_COLORS[expTier ?? "P2"]} />
-            <Typography sx={{ fontSize: ".56rem", lineHeight: 1.05 }}>{nameOf(exp.typeId)}</Typography>
+            <Typography sx={{ fontSize: ".58rem", lineHeight: 1.05, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {nameOf(exp.typeId)}
+            </Typography>
           </Box>
         ) : (
           <Typography sx={{ fontSize: ".55rem", color: "text.disabled" }}>idle</Typography>
@@ -110,39 +109,40 @@ export function ProductionMatrix({
     );
   }
 
-  // planet types actually present, in fixed order
   const present = TYPE_ORDER.filter((t) =>
     characters.some((c) => c.planets.some((p) => p.planet_type === t)),
   );
   const cell = (c: AccessToken, t: PlanetType) => c.planets.filter((p) => p.planet_type === t);
 
-  const cols = `104px repeat(${characters.length}, minmax(150px, 1fr))`;
-  const minW = 104 + characters.length * 150;
+  const cols = `104px repeat(${characters.length}, minmax(158px, 1fr))`;
+  const minW = 104 + characters.length * 158;
 
   return (
     <Box sx={{ overflowX: "auto", pb: 1 }}>
       <Box sx={{ display: "grid", gridTemplateColumns: cols, gap: 0.75, minWidth: minW }}>
-        {/* header row */}
-        <Box sx={{ position: "sticky", left: 0, zIndex: 2, bgcolor: "#1e1e1e" }} />
+        {/* header row: who the characters are */}
+        <Box sx={{ position: "sticky", left: 0, zIndex: 2, bgcolor: "#161616" }} />
         {characters.map((c) => (
-          <Tooltip key={c.character.characterId} title={`${c.character.name} · ${c.planets.length} planets`}>
-            <Box sx={{ textAlign: "center", py: 0.5, bgcolor: "#242424", borderRadius: "6px", border: "1px solid rgba(255,255,255,.08)" }}>
-              <Typography sx={{ fontFamily: "monospace", fontWeight: 700, fontSize: ".85rem", letterSpacing: ".05em" }}>
-                {initials(c.character.name)}
-              </Typography>
+          <Box key={c.character.characterId} sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 0.75, py: 0.5, bgcolor: "#242424", borderRadius: "6px", border: "1px solid rgba(255,255,255,.08)", minWidth: 0 }}>
+            <Box sx={{ width: 26, height: 26, borderRadius: "50%", overflow: "hidden", flex: "none", lineHeight: 0 }}>
+              <Image src={PORTRAIT(c.character.characterId)} alt="" width={26} height={26} unoptimized />
             </Box>
-          </Tooltip>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: ".74rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {c.character.name}
+              </Typography>
+              <Typography sx={{ fontSize: ".58rem", color: "text.disabled" }}>{c.planets.length} planets</Typography>
+            </Box>
+          </Box>
         ))}
 
         {/* type rows */}
         {present.map((t) => (
           <Box key={t} sx={{ display: "contents" }}>
-            {/* row label (sticky) */}
             <Box sx={{ position: "sticky", left: 0, zIndex: 1, display: "flex", alignItems: "center", gap: 0.75, px: 0.75, bgcolor: "#161616", borderRadius: "6px", border: "1px solid rgba(255,255,255,.06)" }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: PLANET_COLORS[t], flex: "none" }} />
+              <PlanetBadge type={t} size={18} />
               <Typography sx={{ fontSize: ".72rem", fontWeight: 500 }}>{cap(t)}</Typography>
             </Box>
-            {/* one cell per character */}
             {characters.map((c) => {
               const planets = cell(c, t);
               return (
@@ -151,7 +151,7 @@ export function ProductionMatrix({
                     <PlanetCell key={p.planet_id} planet={p} requiredIds={requiredIds} onSelect={onSelect} />
                   ))}
                   {planets.length === 0 && (
-                    <Box sx={{ minHeight: 52, borderRadius: "6px", border: "1px dashed rgba(255,255,255,.05)" }} />
+                    <Box sx={{ minHeight: 48, borderRadius: "6px", border: "1px dashed rgba(255,255,255,.05)" }} />
                   )}
                 </Box>
               );

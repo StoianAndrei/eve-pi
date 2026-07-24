@@ -13,9 +13,7 @@ import { DowloadButton } from "../Backup/DowloadButton";
 import { UploadButton } from "../Backup/UploadButton";
 import { CCPButton } from "../CCP/CCPButton";
 import { DiscordButton } from "../Discord/DiscordButton";
-import { GitHubButton } from "../Github/GitHubButton";
 import { LoginButton } from "../Login/LoginButton";
-import { PartnerCodeButton } from "../PartnerCode/PartnerCodeButton";
 import { SettingsButton } from "../Settings/SettingsButtons";
 import { BuyMeCoffeeButton } from "../BuyMeCoffee/BuyMeCoffeeButton";
 import {
@@ -107,10 +105,6 @@ function ResponsiveAppBar() {
                 <DiscordButton />
               </MenuItem>
               <MenuItem onClick={handleCloseNavMenu}>
-                <GitHubButton />
-              </MenuItem>
-
-              <MenuItem onClick={handleCloseNavMenu}>
                 <SettingsButton />
               </MenuItem>
               <MenuItem
@@ -129,9 +123,6 @@ function ResponsiveAppBar() {
               </MenuItem>
               <MenuItem onClick={handleCloseNavMenu}>
                 <CCPButton />
-              </MenuItem>
-              <MenuItem onClick={handleCloseNavMenu}>
-                <PartnerCodeButton />
               </MenuItem>
               <MenuItem onClick={handleCloseNavMenu}>
                 <BuyMeCoffeeButton />
@@ -169,14 +160,11 @@ function ResponsiveAppBar() {
             <DowloadButton />
             <UploadButton />
             <DiscordButton />
-            <GitHubButton />
-
             <SettingsButton />
             <Button onClick={() => setFaqOpen(true)} color="inherit">
               FAQ
             </Button>
             <CCPButton />
-            <PartnerCodeButton />
             <BuyMeCoffeeButton />
           </Box>
         </Toolbar>
@@ -191,23 +179,6 @@ function ResponsiveAppBar() {
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            <strong>EVE Online Partner Code</strong>
-            <br />
-            Consider using my partner code for CCP related purchases to support
-            this project:
-            <Button
-              href=""
-              style={{ width: "100%" }}
-              sx={{ color: "white", display: "block" }}
-              onClick={() => {
-                navigator.clipboard.writeText("CALLIEVE");
-              }}
-            >
-              CALLIEVE
-            </Button>{" "}
-            Click button above to copy to clipboard.
-            <br />
-            <br />
             <strong>What is this application?</strong>
             <br />
             This EVE Online Planetary Interaction tool that helps you track and
