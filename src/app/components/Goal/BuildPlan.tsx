@@ -13,6 +13,7 @@ import { componentTree, ComponentTree, P1_PER_PLANET } from "@/pi-plan";
 import { PlanetType } from "@/pi-planets";
 import { buildChain } from "@/pi-chain";
 import { ProductionMatrix } from "./ProductionMatrix";
+import { PlanetBadge } from "../common/PlanetBadge";
 
 /**
  * Guided "Build plan" — the post-login journey. Start at the item, end at a
@@ -448,7 +449,7 @@ const PBox = ({ id, name, tier, types }: { id: number; name: string; tier: "P0" 
       {types && types.length > 0 && (
         <Box sx={{ display: "flex", gap: 0.3, mt: 0.2 }}>
           {types.slice(0, 6).map((t) => (
-            <Box key={t} title={t} sx={{ width: 7, height: 7, borderRadius: "1px", bgcolor: PLANET_COLORS[t] }} />
+            <PlanetBadge key={t} type={t} size={13} />
           ))}
         </Box>
       )}

@@ -26,6 +26,7 @@ import {
 import { SessionContext } from "@/app/context/Context";
 import { EVE_IMAGE_URL, PI_SCHEMATICS } from "@/const";
 import { PLANET_P0, PlanetType } from "@/pi-planets";
+import { PlanetBadge } from "../common/PlanetBadge";
 import {
   EvePraisalResult,
   fetchAllPrices,
@@ -113,7 +114,7 @@ function FlowTree({ node }: { node: FlowNode }) {
         {node.tier === "P0" && (
           <Box sx={{ display: "flex", gap: 0.3, mt: 0.3 }}>
             {planetTypesForP0(node.id).map((t) => (
-              <Box key={t} title={t} sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: PLANET_COLORS[t] }} />
+              <PlanetBadge key={t} type={t} size={13} />
             ))}
           </Box>
         )}
@@ -700,7 +701,7 @@ export function Investigator({
                       "&:hover": { opacity: 1, bgcolor: "rgba(255,255,255,.06)" },
                     }}
                   >
-                    <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: PLANET_COLORS[t], flex: "none" }} />
+                    <PlanetBadge type={t} size={16} />
                     <Typography sx={{ fontSize: ".76rem" }}>{cap(t)}</Typography>
                   </Box>
                 );
@@ -818,11 +819,7 @@ export function Investigator({
                   <Typography sx={{ fontSize: ".8rem", flex: 1 }}>{r.name}</Typography>
                   <Box sx={{ display: "flex", gap: 0.5 }}>
                     {r.sources.map((t) => (
-                      <Box
-                        key={t}
-                        title={t}
-                        sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: PLANET_COLORS[t], flex: "none" }}
-                      />
+                      <PlanetBadge key={t} type={t} size={15} />
                     ))}
                   </Box>
                 </Box>
@@ -840,7 +837,7 @@ export function Investigator({
               <Box sx={{ px: 1.75, py: 1.5 }}>
                 <Typography sx={{ ...controlLabel, color: TIER_COLORS.P2, mb: 0.75 }}>Factory hub</Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                  <Box sx={{ width: 12, height: 12, borderRadius: "50%", bgcolor: PLANET_COLORS[combo.hub.type], flex: "none" }} />
+                  <PlanetBadge type={combo.hub.type} size={17} />
                   <Typography sx={{ fontSize: ".82rem", fontWeight: 500 }}>{cap(combo.hub.type)}</Typography>
                   <Typography sx={{ fontSize: ".74rem", color: "text.secondary" }}>
                     makes {nameOf(target)}
@@ -857,7 +854,7 @@ export function Investigator({
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, mb: 1.5 }}>
                   {combo.spokes.map((s) => (
                     <Box key={s.p0} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: PLANET_COLORS[s.type], flex: "none" }} />
+                      <PlanetBadge type={s.type} size={15} />
                       <Typography sx={{ fontSize: ".78rem", minWidth: 82 }}>{cap(s.type)}</Typography>
                       <Image src={ICON(s.p0)} alt="" width={18} height={18} unoptimized />
                       <Typography sx={{ fontSize: ".76rem", color: "text.secondary" }}>{nameOf(s.p0)}</Typography>
